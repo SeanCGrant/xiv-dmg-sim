@@ -1,0 +1,43 @@
+# A damage simulator for Final Fantasy XIV teams
+
+from simFunctions import sim_battle, damage_iteration, plot_hist
+from charActors import dnc
+import time
+
+if __name__ == '__main__':
+    # time the run
+    start_time = time.time()
+
+    # create character actors (by hand for now)
+    y = dnc.Actor(120, 2560, 1987, 510, 3.14)
+    z = dnc.Actor(50, 2560, 1987, 510, 3.14)
+    actor_list = [y, z]
+
+    # Replay the fight multiple times to build statistics
+    dmg_list = []
+    battle_iterations = 10  # iterations for stochastic fight rotation variance
+    rng_interatons = 100  # iterations for stochastic damage variance (crit, dhit, etc.)
+    for i in range(battle_iterations):
+        # be sure to reset the actors between iterations
+        [actor.reset() for actor in actor_list]
+        # sim the fight
+        dmg, sim_log = sim_battle(actor_list, False)
+
+        # Calculate stochastic damage multiple times to build statistics
+        for j in range(rng_interatons):
+            # roll one damage iteration
+            damage_iteration(actor_list, sim_log)
+
+            # add to damage list
+            dmg_list.append(sim_log['Full Damage'].sum())
+
+        print('############### Battle Iteration {} Done ###############'.format(i+1))
+
+    print(sim_log[['Time', 'Player', 'Ability', 'Potency', "Flat Damage", "Full Damage"]][:20])
+
+    # End timer
+    print("~~ Time: {} seconds".format(time.time() - start_time))
+
+    # plot the damage histogram
+    plot_hist(dmg_list)
+
