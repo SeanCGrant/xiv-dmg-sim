@@ -2,6 +2,7 @@ from .baseActor import BaseActor
 import pandas as pd
 import numpy as np
 
+
 # dancer-specific Actor
 class Actor(BaseActor):
     def __init__(self, wd, ap, det, spd, wpn_delay, ten=400):
@@ -15,7 +16,7 @@ class Actor(BaseActor):
         self.auto_potency = 80  # check this value
 
         self.pers_buffs = {}  # personal buffs
-        self.resources = {}  # track personal resources
+        self.resources = {'esprit': 0, 'feathers': 0}  # track personal resources
         buffs = {'F': 0, 'RC': 0, 'FF': 0}
         self.buffs = pd.Series(buffs)
 

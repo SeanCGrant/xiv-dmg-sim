@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 
 
 # convert potency to damage (standard hits)
-def pot_to_dmg(pot, wd, ap, det, tnc=400):
+def pot_to_dmg(pot, job_mod, trait, wd, ap, det, tnc=400):
     lvlMod_main = 390
     lvlMod_sub = 400
     lvlMod_div = 1900
-    jobMod_dmg = 115  # this is not universally true, just usually. Needs more in the long run
-    trait = 120  # this is also just an place holder
+    jobMod_dmg = job_mod  # 115 ish
+    trait = trait  # 120 ish
 
     fAtk = ((195 * (ap - lvlMod_main) / lvlMod_main) // 1) + 100
     # ^^ probably 195 instead of 165, and '340' was actually lvl_main; should be something else for tanks? ^^ #
@@ -25,12 +25,12 @@ def pot_to_dmg(pot, wd, ap, det, tnc=400):
 
 
 # convert potency to damage (auto attacks)
-def auto_dmg(pot, wd, ap, det, spd, wpn_delay, tnc=400):
+def auto_dmg(pot, job_mod, trait, wd, ap, det, spd, wpn_delay, tnc=400):
     lvlMod_main = 390
     lvlMod_sub = 400
     lvlMod_div = 1900
-    jobMod_dmg = 115  # this is not universally true, just usually. Needs more in the long run
-    trait = 120  # this is also just an place holder
+    jobMod_dmg = job_mod  # 115 ish
+    trait = trait  # 120 ish
 
     fAtk = ((195 * (ap - lvlMod_main) / lvlMod_main) // 1) + 100
     # ^^ probably 195 instead of 165, and '340' was actually lvl_main; should be something else for tanks? ^^ #
@@ -45,12 +45,12 @@ def auto_dmg(pot, wd, ap, det, spd, wpn_delay, tnc=400):
 
 
 # convert potency to damage (dot ticks)
-def dot_dmg(pot, wd, ap, det, spd, tnc=400):
+def dot_dmg(pot, job_mod, trait, wd, ap, det, spd, tnc=400):
     lvlMod_main = 390
     lvlMod_sub = 400
     lvlMod_div = 1900
-    jobMod_dmg = 115  # this is not universally true, just usually. Needs more in the long run
-    trait = 120  # this is also just an place holder
+    jobMod_dmg = job_mod  # 115 ish
+    trait = trait  # 120 ish
 
     fAtk = ((195 * (ap - lvlMod_main) / lvlMod_main) // 1) + 100
     # ^^ probably 195 instead of 165, and '340' was actually lvl_main; should be something else for tanks? ^^ #
@@ -64,7 +64,7 @@ def dot_dmg(pot, wd, ap, det, spd, tnc=400):
     return dmg
 
 
-def sim_battle(actor_list, verbose=False):
+def sim_battle(fight_length, actor_list, verbose=False):
 
     # create battle log
     battle_log = pd.DataFrame(columns=["Time", "Player", "Ability", "Potency", "Crit Rate", "Dhit Rate",
@@ -72,7 +72,7 @@ def sim_battle(actor_list, verbose=False):
 
     # initialize time
     time = 0.0
-    fight_length = 30.0  # fight duration (provided by user)
+    fight_length = fight_length  # fight duration (provided by user)
     # randomize boss enemy tick
     dot_tick = round(np.random.rand() * 3, 2)
 
@@ -144,15 +144,15 @@ def sim_battle(actor_list, verbose=False):
 
         # ability damage
         battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'gcd'), 'Flat Damage'] = \
-            pd.Series(pot_to_dmg(battle_log['Potency'], wd, ap, det))
+            pot_to_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det)
 
         # auto damage
         battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'auto'), 'Flat Damage'] = \
-            pd.Series(auto_dmg(battle_log['Potency'], wd, ap, det, spd, wpn_delay))
+            auto_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det, spd, wpn_delay)
 
         # dot damage
         battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'dot tick'), 'Flat Damage'] = \
-            pd.Series(dot_dmg(battle_log['Potency'], wd, ap, det, spd))
+            dot_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det, spd)
 
     tot_dmg = battle_log['Flat Damage'].sum()
 
