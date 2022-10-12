@@ -17,7 +17,7 @@ if __name__ == '__main__':
     dmg_list = []
     battle_iterations = 5  # iterations for stochastic fight rotation variance
     rng_interatons = 100  # iterations for stochastic damage variance (crit, dhit, etc.)
-    fight_sim_duration = 360.0  # length of the fight in seconds
+    fight_sim_duration = 120.0  # length of the fight in seconds
 
     for i in range(battle_iterations):
         # be sure to reset the actors between iterations
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         print('############### Battle Iteration {} Done ###############'.format(i+1))
 
     print('First 20 rows of last battle sim:')
-    print(sim_log[['Time', 'Player', 'Ability', 'Potency', "Flat Damage", "Full Damage"]][:20])
+    print(sim_log[['Time', 'Player', 'Ability', 'Potency', 'Multiplier', "Flat Damage", 'Crit Rate', "Full Damage"]][:60])
 
     # End timer
     print("~~ Time: {} seconds".format(time.time() - start_time))

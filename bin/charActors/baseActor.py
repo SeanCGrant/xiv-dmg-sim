@@ -35,6 +35,10 @@ class BaseActor:
         # return a list of the character's stats
         return [self.jobMod, self.trait, self.wd, self.ap, self.det, self.spd, self.wpn_delay, self.ten]
 
+    def buff_state(self):
+        # return current multiplier, crit_rate, and dhit_rate
+        return self.total_buff_mult, self.crit_rate, self.dhit_rate
+
     def inc_action(self):
         # move to the next action
         self.action_counter += 1
@@ -43,7 +47,7 @@ class BaseActor:
         # move to the next auto
         self.next_auto += self.wpn_delay
 
-        return self.auto_potency
+        return self.auto_potency, self.buff_state()
 
     def report_dots(self, time):
         # check if dots are still active
@@ -55,31 +59,46 @@ class BaseActor:
         # put the action on cooldown
         self.actions[action].cooldown = self.actions[action].self_cooldown
 
+        # values to be returned
         potency = self.actions[action].potency
+        buff_state = self.buff_state()
+
+        # apply any self buffs, return any team buffs
         buff_type = self.actions[action].buff_effect[0]
         buff = self.actions[action].buff_effect[1]
+        match buff_type:
+            case 'self':
+                self.apply_buff(buff)
+                buff = 'none'
+            case 'logistic':
+                # don't return logistic buffs
+                buff = 'none'
+            case _:
+                pass
 
-        # apply any self(?) buffs
-        if buff_type == 'self':
-            self.apply_buff(buff)
-            buff = 'none'
+        # adjust the player's next_event time
+        # TO-DO: handle more than just GCDs
+        self.next_event += self.gcd_time
 
-        return potency, buff
+        return potency, buff_state, buff
 
     def apply_buff(self, buff):
+        if self.buffs[buff].timer == 0:
+            # only apply the effect of the buff if actually new (not refreshing)
+            match self.buffs[buff].type:
+                case 'logistic':
+                    pass
+                case 'dmg':
+                    self.total_buff_mult *= self.buffs[buff].value
+                case 'crit':
+                    self.crit_rate += self.buffs[buff].value
+                case 'dhit':
+                    self.dhit_rate += self.buffs[buff].value
+                case 'spd':
+                    self.gcd_time /= self.buffs[buff].value
+
         # apply the buff at full duration
         self.buffs[buff].timer = self.buffs[buff].duration
-
-        # apply the effect of the buff
-        match self.buffs[buff].type:
-            case 'dmg':
-                self.total_buff_mult *= self.buffs[buff].value
-            case 'crit':
-                self.crit_rate += self.buffs[buff].value
-            case 'dhit':
-                self.dhit_rate += self.buffs[buff].value
-            case 'spd':
-                self.gcd_time /= self.buffs[buff].value
 
     def remove_buff(self, buff):
         # remove the effect of the buff
@@ -93,7 +112,22 @@ class BaseActor:
             case 'spd':
                 self.gcd_time *= self.buffs[buff].value
 
+    def update_time(self, current_time):
+        # adjust player timers based on how long it has been since the last update
+        # update all buff timers
+        for buff, tracker in self.buffs.items():
+            # also check for buff removal
+            if tracker.update_time(current_time - self.last_time_check):
+                if tracker.type != 'logistic':
+                    # remove buff effect
+                    self.remove_buff(buff)
 
+        # update all action cooldowns
+        for action, tracker in self.actions.items():
+            tracker.update_time(current_time - self.last_time_check)
+
+        # update last time check to now
+        self.last_time_check = current_time
 
 
 @dataclass
@@ -103,7 +137,7 @@ class ActionDC:
     potency: int
     self_cooldown: float
     cooldown: float = 0
-    buff_effect: str = 'none'  # 'none', '*buff name*'
+    buff_effect: (str, str) = ('none', 'none')  # (['none', 'self', 'team'], ['none', '*buff name*'])
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
 
     def update_time(self, time_change):

@@ -92,19 +92,22 @@ def sim_battle(fight_length, actor_list, verbose=False):
         # update that player's time
         actor_list[player].update_time(time)
 
+        # assume no buff unless told otherwise
+        event_buff = 'none'
+
         if verbose:
             print(event_tracker)
             print(event_loc)
 
         if event_loc[0] == 0:
             # execute action
-            event_pot = actor_list[player].choose_action()
+            event_pot, (event_M, event_crit, event_dhit), event_buff = actor_list[player].choose_action()
             event_name = "gcd"
             # update tracker for next event_pot
             event_tracker[0, player] = actor_list[player].next_event
         elif event_loc[0] == 1:
             # execute auto
-            event_pot = actor_list[player].inc_auto()
+            event_pot, (event_M, event_crit, event_dhit) = actor_list[player].inc_auto()
             event_name = "auto"
             # update tracker for next event_pot
             event_tracker[1, player] = actor_list[player].next_auto
@@ -115,27 +118,25 @@ def sim_battle(fight_length, actor_list, verbose=False):
             event_pot = 0.0
             event_name = "dot tick"
             # increment dot tracker
-            event_tracker[2, :] = event_tracker[2, :] + 3
+            event_tracker[2, player] = event_tracker[2, player] + 3
 
-        #### Temp stat estimates estimates ####
-        event_crit = 0.25
-        event_dhit = 0.4
-        event_M = 1.0
-        #######################################
 
         # log event_pot
         event_log = pd.Series({"Time": time, "Player": player, "Ability": event_name, "Potency": event_pot,
-                               "Crit Rate": event_crit, "Dhit Rate": event_dhit, "Buff Multiplier": event_M,
+                               "Crit Rate": event_crit, "Dhit Rate": event_dhit, "Multiplier": event_M,
                                "Flat Damage": np.nan, "Full Damage": np.nan})
         battle_log = pd.concat([battle_log, event_log.to_frame().T], ignore_index=True)
         if verbose:
             print('Time: {:.2f}\t\tPotency: {}'.format(time, event_pot))
 
+        # apply team buffs
+        # TO-DO: team buffs should be applied after a short delay
+        if event_buff != 'none':
+            for actor in actor_list:
+                actor.apply_buff(event_buff)
+
         # update time to next event_pot
         time = np.min(event_tracker)
-
-    # get final damage numbers? (maybe leave it, to calculate after all iterations of battle sim completed -- )
-    # ( -- return potency lists if so?)
 
     # calculate damage from the DataFrame, individualized to each player
     for i in range(len(actor_list)):
@@ -144,7 +145,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
         # ability damage
         battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'gcd'), 'Flat Damage'] = \
-            pot_to_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det)
+            pot_to_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det) * battle_log['Multiplier']
 
         # auto damage
         battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'auto'), 'Flat Damage'] = \
@@ -156,9 +157,6 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
     tot_dmg = battle_log['Flat Damage'].sum()
 
-    # maybe track and return (min, mean, max) for each ability? or do we want to track everything (for dps plots)?
-    # --> could still be... dps vs time for each ability, without tracking each instance?
-    # --> then final plot is average of these
     return tot_dmg, battle_log
 
 
