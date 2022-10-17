@@ -6,7 +6,7 @@ import time
 
 if __name__ == '__main__':
     # time the run
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     # create character actors (by hand for now)
     y = dnc.Actor(120, 2560, 1987, 510, 3.14)
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     print(sim_log[['Time', 'Player', 'Ability', 'Potency', 'Multiplier', "Flat Damage", 'Crit Rate', "Full Damage"]][:60])
 
     # End timer
-    print("~~ Time: {} seconds".format(time.time() - start_time))
+    print("~~ Time: {} seconds".format(time.perf_counter() - start_time))
 
     # plot the damage histogram
     plot_hist(dmg_list)

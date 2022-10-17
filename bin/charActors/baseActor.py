@@ -19,7 +19,7 @@ class BaseActor:
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
-        self.active_dots = np.array([[60, 0, 0], [90, 0, 0]])  # placeholder idea (60 and 90 pot dots, binary "on", end time)
+        self.dots = {}
         self.ex_buffs = {}  # track all external buffs (maybe start and end time for each buff)
         self.buffs = {}     # will track all buffs, should combine ex_buffs with each personal_buffs
         self.resources = {}
@@ -49,12 +49,6 @@ class BaseActor:
 
         return self.auto_potency, self.buff_state()
 
-    def report_dots(self, time):
-        # check if dots are still active
-        self.active_dots[:, 1] = np.where(self.active_dots[:, 2] >= time, self.active_dots[:, 1], 0)
-        # report the total potency of all active dots
-        return np.sum(np.where(self.active_dots[:, 1], self.active_dots[:, 0], 0))
-
     def perform_action(self, action):
         # put the action on cooldown
         self.actions[action].cooldown = self.actions[action].self_cooldown
@@ -75,6 +69,11 @@ class BaseActor:
                 buff = 'none'
             case _:
                 pass
+
+        # apply any dots
+        dot = self.actions[action].dot_effect
+        if dot != 'none':
+            self.apply_dot(dot)
 
         # adjust the player's next_event time
         # TO-DO: handle more than just GCDs
@@ -112,19 +111,31 @@ class BaseActor:
             case 'spd':
                 self.gcd_time *= self.buffs[buff].value
 
+    def apply_dot(self, dot_name):
+        # update the dot timer
+        self.dots[dot_name].timer = self.dots[dot_name].duration
+        # take a snapshot of current buffs
+        self.dots[dot_name].buff_snap = self.buff_state()
+
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
+        time_change = current_time - self.last_time_check
+
         # update all buff timers
         for buff, tracker in self.buffs.items():
             # also check for buff removal
-            if tracker.update_time(current_time - self.last_time_check):
+            if tracker.update_time(time_change):
                 if tracker.type != 'logistic':
                     # remove buff effect
                     self.remove_buff(buff)
 
+        # update all dot timers
+        for dot, tracker in self.dots.items():
+            tracker.update_time(time_change)
+
         # update all action cooldowns
         for action, tracker in self.actions.items():
-            tracker.update_time(current_time - self.last_time_check)
+            tracker.update_time(time_change)
 
         # update last time check to now
         self.last_time_check = current_time
@@ -138,6 +149,7 @@ class ActionDC:
     self_cooldown: float
     cooldown: float = 0
     buff_effect: (str, str) = ('none', 'none')  # (['none', 'self', 'team'], ['none', '*buff name*'])
+    dot_effect: str = 'none'  # 'none', '*dot name*'
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
 
     def update_time(self, time_change):
@@ -162,6 +174,20 @@ class BuffDC:
             self.timer = max(self.timer - time_change, 0)
 
         return remove
+
+
+@dataclass
+class DotDC:
+    # a class to hold the information for each DoT
+    potency: int
+    duration: float
+    buff_snap: tuple
+    timer: float = 0.0
+
+    def update_time(self, time_change):
+        if self.timer > 0:
+            self.timer = max(self.timer - time_change, 0)
+
 
 
 

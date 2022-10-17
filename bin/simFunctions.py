@@ -66,9 +66,20 @@ def dot_dmg(pot, job_mod, trait, wd, ap, det, spd, tnc=400):
 
 def sim_battle(fight_length, actor_list, verbose=False):
 
+    # Put an event into the battle log
+    def log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose):
+        # create a line for the event, then add to the battle log
+        event_log = pd.Series({"Time": time, "Player": player, "Ability": event_name, "Potency": event_pot,
+                               "Crit Rate": event_crit, "Dhit Rate": event_dhit, "Multiplier": event_M,
+                               "Flat Damage": np.nan, "Full Damage": np.nan})
+        nonlocal battle_log
+        battle_log = pd.concat([battle_log, event_log.to_frame().T], ignore_index=True)
+        if verbose:
+            print('Time: {:.2f}\t\tPotency: {}'.format(time, event_pot))
+
     # create battle log
     battle_log = pd.DataFrame(columns=["Time", "Player", "Ability", "Potency", "Crit Rate", "Dhit Rate",
-                                       "Buff Multiplier", "Flat Damage", "Full Damage"])
+                                       "Multiplier", "Flat Damage", "Full Damage"])
 
     # initialize time
     time = 0.0
@@ -103,31 +114,26 @@ def sim_battle(fight_length, actor_list, verbose=False):
             # execute action
             event_pot, (event_M, event_crit, event_dhit), event_buff = actor_list[player].choose_action()
             event_name = "gcd"
+            log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
             # update tracker for next event_pot
             event_tracker[0, player] = actor_list[player].next_event
         elif event_loc[0] == 1:
             # execute auto
             event_pot, (event_M, event_crit, event_dhit) = actor_list[player].inc_auto()
             event_name = "auto"
+            log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
             # update tracker for next event_pot
             event_tracker[1, player] = actor_list[player].next_auto
         else:
             # execute dot tick
-            if verbose:
-                print('A dot tick')
-            event_pot = 0.0
-            event_name = "dot tick"
+            for dot, tracker in actor_list[player].dots.items():
+                # log each dot individually (could have different buff snapshots)
+                event_pot, (event_M, event_crit, event_dhit) = tracker.potency, tracker.buff_snap
+                event_name = "dot tick"
+                log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
+
             # increment dot tracker
             event_tracker[2, player] = event_tracker[2, player] + 3
-
-
-        # log event_pot
-        event_log = pd.Series({"Time": time, "Player": player, "Ability": event_name, "Potency": event_pot,
-                               "Crit Rate": event_crit, "Dhit Rate": event_dhit, "Multiplier": event_M,
-                               "Flat Damage": np.nan, "Full Damage": np.nan})
-        battle_log = pd.concat([battle_log, event_log.to_frame().T], ignore_index=True)
-        if verbose:
-            print('Time: {:.2f}\t\tPotency: {}'.format(time, event_pot))
 
         # apply team buffs
         # TO-DO: team buffs should be applied after a short delay

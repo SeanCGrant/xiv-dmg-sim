@@ -1,4 +1,4 @@
-from .baseActor import BaseActor, ActionDC, BuffDC
+from .baseActor import BaseActor, ActionDC, BuffDC, DotDC
 import pandas as pd
 import numpy as np
 
@@ -20,11 +20,13 @@ class Actor(BaseActor):
                  'FF': BuffDC('logistic', 30.0, 0.0, 0.0), 'testBuff': BuffDC('dmg', 10, 0.0, 3.0),
                  'testTeam': BuffDC('crit', 2.5, 0.0, 0.2)}
         self.buffs.update(buffs)
-        actions = {'Cascade': ActionDC('gcd', 220, self.gcd_time, 0.0, ('self', 'F')),
+        actions = {'Cascade': ActionDC('gcd', 220, self.gcd_time, 0.0, ('self', 'F'), dot_effect='TestDot'),
                    'Fountain': ActionDC('gcd', 280, self.gcd_time),
                    'ReverseCascade': ActionDC('gcd', 280, self.gcd_time, buff_effect=('team', 'testTeam')),
                    'Fountainfall': ActionDC('gcd', 340, self.gcd_time, 0.0, ('self', 'testBuff'))}
         self.actions.update(actions)
+        dots = {'TestDot': DotDC(50, 15, self.buff_state())}
+        self.dots.update(dots)
 
     def choose_action(self):
         # determine current action, based on current buffs/procs
