@@ -104,7 +104,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
         actor_list[player].update_time(time)
 
         # assume no buff unless told otherwise
-        event_buff = 'none'
+        event_buff = []
 
         if verbose:
             print(event_tracker)
@@ -128,18 +128,19 @@ def sim_battle(fight_length, actor_list, verbose=False):
             # execute dot tick
             for dot, tracker in actor_list[player].dots.items():
                 # log each dot individually (could have different buff snapshots)
-                event_pot, (event_M, event_crit, event_dhit) = tracker.potency, tracker.buff_snap
-                event_name = "dot tick"
-                log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
+                if tracker.timer > 0:
+                    event_pot, (event_M, event_crit, event_dhit) = tracker.potency, tracker.buff_snap
+                    event_name = "dot tick"
+                    log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
 
             # increment dot tracker
             event_tracker[2, player] = event_tracker[2, player] + 3
 
         # apply team buffs
         # TO-DO: team buffs should be applied after a short delay
-        if event_buff != 'none':
+        for buff in event_buff:
             for actor in actor_list:
-                actor.apply_buff(event_buff)
+                actor.apply_buff(buff)
 
         # update time to next event_pot
         time = np.min(event_tracker)

@@ -1,20 +1,23 @@
 import numpy as np
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 
 # Create a base class for the character actors
 class BaseActor:
 
-    def __init__(self, job_mod, trait, wd, ap, det, spd, wpn_delay, ten=400):
+    def __init__(self, job_mod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400):
         self.jobMod = job_mod
         self.trait = trait
         self.wd = wd
         self.ap = ap
         self.det = det
         self.spd = spd
+        self.crit = crit
+        self.dhit = dhit
         self.wpn_delay = wpn_delay
         self.ten = ten
-        self.gcd_time = 2.5  # call to spd stat in the long run
+        self.gcd_time = spd_from_stat(spd, 2500)  # override for jobs that aren't on 2.5 gcd (2500 ms)
         self.next_event = 0.0
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
@@ -26,8 +29,8 @@ class BaseActor:
         self.actions = {}
         self.last_time_check = 0.0  # the last time this player had their timers updated
         self.total_buff_mult = 1.0  # actively modified to reflect current active buffs
-        self.base_crit = 0.25  # TO-DO: make a call with crit stat
-        self.base_dhit = 0.5  # TO-DO: make a call with dhit stat
+        self.base_crit = crit_from_stat(crit)
+        self.base_dhit = dhit_from_stat(dhit)
         self.crit_rate = self.base_crit  # actively modified to reflect current buffs and/or auto-crits
         self.dhit_rate = self.base_dhit  # actively modified to reflect current buffs and/or auto-dhits
 
@@ -58,46 +61,52 @@ class BaseActor:
         buff_state = self.buff_state()
 
         # apply any self buffs, return any team buffs
-        buff_type = self.actions[action].buff_effect[0]
-        buff = self.actions[action].buff_effect[1]
-        match buff_type:
-            case 'self':
-                self.apply_buff(buff)
-                buff = 'none'
-            case 'logistic':
-                # don't return logistic buffs
-                buff = 'none'
-            case _:
-                pass
+        team_buffs = self.actions[action].buff_effect.get('team', [])
+        self_buffs = self.actions[action].buff_effect.get('self', [])
+        for buff in self_buffs:
+            self.apply_buff(buff)
+
+        # remove any buffs
+        for buff in self.actions[action].buff_removal:
+            self.remove_buff(buff)
 
         # apply any dots
         dot = self.actions[action].dot_effect
         if dot != 'none':
             self.apply_dot(dot)
 
+        # generate any resources
+        for resource, val in self.actions[action].resource.items():
+            self.add_resource(resource, val)
+
         # adjust the player's next_event time
         # TO-DO: handle more than just GCDs
-        self.next_event += self.gcd_time
+        self.next_event += self.actions[action].gcd_lock
 
-        return potency, buff_state, buff
+        return potency, buff_state, team_buffs
 
     def apply_buff(self, buff):
-        if self.buffs[buff].timer == 0:
-            # only apply the effect of the buff if actually new (not refreshing)
-            match self.buffs[buff].type:
-                case 'logistic':
-                    pass
-                case 'dmg':
-                    self.total_buff_mult *= self.buffs[buff].value
-                case 'crit':
-                    self.crit_rate += self.buffs[buff].value
-                case 'dhit':
-                    self.dhit_rate += self.buffs[buff].value
-                case 'spd':
-                    self.gcd_time /= self.buffs[buff].value
+        if isinstance(buff, tuple):
+            # buff has a probability to go off (some procs, for example)
+            if np.random.rand() < buff[1]:
+                self.apply_buff(buff[0])
+        else:
+            if self.buffs[buff].timer == 0:
+                # only apply the effect of the buff if actually new (not refreshing)
+                match self.buffs[buff].type:
+                    case 'logistic':
+                        pass
+                    case 'dmg':
+                        self.total_buff_mult *= self.buffs[buff].value
+                    case 'crit':
+                        self.crit_rate += self.buffs[buff].value
+                    case 'dhit':
+                        self.dhit_rate += self.buffs[buff].value
+                    case 'spd':
+                        self.gcd_time /= self.buffs[buff].value
 
-        # apply the buff at full duration
-        self.buffs[buff].timer = self.buffs[buff].duration
+            # apply the buff at full duration
+            self.buffs[buff].timer = self.buffs[buff].duration
 
     def remove_buff(self, buff):
         # remove the effect of the buff
@@ -111,11 +120,21 @@ class BaseActor:
             case 'spd':
                 self.gcd_time *= self.buffs[buff].value
 
+        # insure the timer goes to zero upon removal
+        self.buffs[buff].timer = 0
+
     def apply_dot(self, dot_name):
         # update the dot timer
         self.dots[dot_name].timer = self.dots[dot_name].duration
         # take a snapshot of current buffs
         self.dots[dot_name].buff_snap = self.buff_state()
+
+    def add_resource(self, name, val):
+        if isinstance(val, tuple):
+            if np.random.rand() < val[1]:
+                self.add_resource(name, val[0])
+        else:
+            self.resources[name] += val
 
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
@@ -147,9 +166,12 @@ class ActionDC:
     type: str  # 'gcd', 'ogcd'
     potency: int
     self_cooldown: float
+    gcd_lock: float
     cooldown: float = 0
-    buff_effect: (str, str) = ('none', 'none')  # (['none', 'self', 'team'], ['none', '*buff name*'])
+    buff_effect: dict = field(default_factory=dict)  # (['none', 'self', 'team'], ['none', '*buff name*'])
+    buff_removal: list = field(default_factory=list)  # ['*buff names*']
     dot_effect: str = 'none'  # 'none', '*dot name*'
+    resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
 
     def update_time(self, time_change):
@@ -189,6 +211,28 @@ class DotDC:
             self.timer = max(self.timer - time_change, 0)
 
 
+# get crit rate from the crit stat
+def crit_from_stat(crit):
+    lvlMod_sub = 400
+    lvlMod_div = 1900
+
+    crit_rate = ((200 * (crit - lvlMod_sub) / lvlMod_div + 50) // 1) / 1000
+    return crit_rate
+
+
+# get crit rate from the crit stat
+def dhit_from_stat(dhit):
+    lvlMod_sub = 400
+    lvlMod_div = 1900
+
+    dhit_rate = ((550 * (dhit - lvlMod_sub) / lvlMod_div) // 1) / 1000
+    return dhit_rate
+
+
+def spd_from_stat(spd, base_gcd):
+
+    gcd = (((base_gcd * (1000 + math.ceil(130 * (400 - spd) / 1900)) / 10000) // 1) / 100)
+    return gcd
 
 
 
