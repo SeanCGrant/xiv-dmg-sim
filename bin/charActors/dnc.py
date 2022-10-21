@@ -15,12 +15,18 @@ class Actor(BaseActor):
         # override auto potency
         self.auto_potency = 80  # check this value
 
-        self.resources = {'esprit': 0, 'feathers': 0}  # track personal resources
-        buffs = {'F': BuffDC('logistic', 30.0, 0.0, 0.0), 'RC': BuffDC('logistic', 30.0, 0.0, 0.0),
-                 'FF': BuffDC('logistic', 30.0, 0.0, 0.0),
-                 'Standard': BuffDC('dmg', 60.0, 0.0, 1.05),
-                 'testSelf': BuffDC('dmg', 10, 0.0, 3.0), 'testTeam': BuffDC('crit', 2.5, 0.0, 0.2)}
+        # dnc specific resources
+        self.resources = {'esprit': 0, 'feathers': 0}
+
+        # dnc personal buffs
+        buffs = {'F': BuffDC('logistic', 30.0), 'RC': BuffDC('logistic', 30.0),
+                 'FF': BuffDC('logistic', 30.0), 'Tillana': BuffDC('logistic', 30.0),
+                 'Starfall': BuffDC('logistic', 20.0),
+                 'Standard': BuffDC('dmg', 60.0, 1.05),
+                 'testSelf': BuffDC('dmg', 10.0, 3.0)}
         self.buffs.update(buffs)
+
+        # dnc actions
         actions = {'Cascade': ActionDC('gcd', 220, self.gcd_time, self.gcd_time, 0.0,
                                        buff_effect={'self': ['F', ('RC', 0.5)]},
                                        resource={'esprit': 5},
@@ -41,9 +47,20 @@ class Actor(BaseActor):
                                           resource={'esprit': -50}),
                    'StandardStep': ActionDC('gcd', 720, 30.0, 5.0,
                                             buff_effect={'self': ['Standard']}),
+                   'TechnicalStep': ActionDC('gcd', 1200, 120.0, 7.0,
+                                             buff_effect={'self': ['Tillana'], 'team': ['Technical']}),
+                   'Tillana': ActionDC('gcd', 360, 1.5, 1.5,
+                                       buff_effect={'self': ['Standard']},
+                                       buff_removal=['Tillana']),
+                   'Starfall': ActionDC('gcd', 600, self.gcd_time, self.gcd_time,
+                                        autocrit=True,
+                                        autodhit=True,
+                                        buff_removal=['Starfall']),
                    'FeatherUse': ActionDC('gcd', 10, self.gcd_time, self.gcd_time,
                                           resource={'feathers': -4})}
         self.actions.update(actions)
+
+        # dnc dots
         dots = {'TestDot': DotDC(50, 15, self.buff_state())}
         self.dots.update(dots)
 

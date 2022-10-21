@@ -23,8 +23,9 @@ class BaseActor:
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
         self.dots = {}
-        self.ex_buffs = {}  # track all external buffs (maybe start and end time for each buff)
-        self.buffs = {}     # will track all buffs, should combine ex_buffs with each personal_buffs
+        # will track all buffs, universal external buffs listed here, personal buffs added within each job
+        self.buffs = {'Technical': BuffDC('dmg', 20.0, 1.05),
+                      'testTeam': BuffDC('crit', 2.5, 0.2)}
         self.resources = {}
         self.actions = {}
         self.last_time_check = 0.0  # the last time this player had their timers updated
@@ -53,37 +54,47 @@ class BaseActor:
         return self.auto_potency, self.buff_state()
 
     def perform_action(self, action):
+        action = self.actions[action]
+
         # put the action on cooldown
-        self.actions[action].cooldown = self.actions[action].self_cooldown
+        action.cooldown = action.recast
 
         # values to be returned
-        potency = self.actions[action].potency
-        buff_state = self.buff_state()
+        potency = action.potency
+        m, crit, dhit = self.buff_state()
+        if action.autocrit:
+            crit = 1.0
+            # Patch 6.2: Apply dmg bonus for crit rate buffs
+            m *= 1 + ((self.crit_rate - self.base_crit) * (self.base_crit + 0.35))
+        if action.autodhit:
+            dhit = 1.0
+            # Patch 6.2: Apply a dmg bonus for dhit rate buffs
+            m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
 
         # apply any self buffs, return any team buffs
-        team_buffs = self.actions[action].buff_effect.get('team', [])
-        self_buffs = self.actions[action].buff_effect.get('self', [])
+        team_buffs = action.buff_effect.get('team', [])
+        self_buffs = action.buff_effect.get('self', [])
         for buff in self_buffs:
             self.apply_buff(buff)
 
         # remove any buffs
-        for buff in self.actions[action].buff_removal:
+        for buff in action.buff_removal:
             self.remove_buff(buff)
 
         # apply any dots
-        dot = self.actions[action].dot_effect
+        dot = action.dot_effect
         if dot != 'none':
             self.apply_dot(dot)
 
         # generate any resources
-        for resource, val in self.actions[action].resource.items():
+        for resource, val in action.resource.items():
             self.add_resource(resource, val)
 
         # adjust the player's next_event time
         # TO-DO: handle more than just GCDs
-        self.next_event += self.actions[action].gcd_lock
+        self.next_event += action.gcd_lock
 
-        return potency, buff_state, team_buffs
+        return potency, (m, crit, dhit), team_buffs
 
     def apply_buff(self, buff):
         if isinstance(buff, tuple):
@@ -165,9 +176,11 @@ class ActionDC:
     # a class to hold the information for each available action
     type: str  # 'gcd', 'ogcd'
     potency: int
-    self_cooldown: float
+    recast: float
     gcd_lock: float
     cooldown: float = 0
+    autocrit: bool = False
+    autodhit: bool = False
     buff_effect: dict = field(default_factory=dict)  # (['none', 'self', 'team'], ['none', '*buff name*'])
     buff_removal: list = field(default_factory=list)  # ['*buff names*']
     dot_effect: str = 'none'  # 'none', '*dot name*'
@@ -183,8 +196,8 @@ class BuffDC:
     # a class to hold the information for each buff
     type: str  # 'dmg', 'crit', 'dhit', 'spd'
     duration: float  # length of the buff
-    timer: float  # the remaining time on the buff
-    value: float  # e.g. 1.05 for a 5% dmg buff
+    value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
+    timer: float = 0.0  # the remaining time on the buff
 
     def update_time(self, time_change):
         remove = False

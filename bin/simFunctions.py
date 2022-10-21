@@ -174,7 +174,7 @@ def damage_iteration(actor_list, sim_log):
 
     # evaluate for each player (b/c different crit multipliers)
     for k in range(len(actor_list)):
-        crit_mult = 0.35 + (0.25)  # to-do: pull from actor
+        crit_mult = 0.35 + actor_list[k].base_crit
         sim_log.loc[sim_log['Player'] == k, 'Crit Multiplier'] = \
             1 + (crit_mult) * (sim_log['Crit Rate'] > crit_dice)
         sim_log.loc[sim_log['Player'] == k, 'Dhit Multiplier'] = \
