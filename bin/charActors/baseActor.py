@@ -19,6 +19,8 @@ class BaseActor:
         self.ten = ten
         self.gcd_time = spd_from_stat(spd, 2500)  # override for jobs that aren't on 2.5 gcd (2500 ms)
         self.spd_mod = 1.0
+        self.next_gcd = 0.0
+        self.next_ogcd = 0.0
         self.next_event = 0.0
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
@@ -27,7 +29,11 @@ class BaseActor:
         # will track all buffs, universal external buffs listed here, personal buffs added within each job
         # TO-DO: add all targeted buffs here too
         self.buffs = {'Technical': BuffDC('dmg', 20.0, 1.05),
-                      'testTeam': BuffDC('crit', 2.5, 0.2)}
+                      'Standard': BuffDC('dmg', 60.0, 1.05),
+                      'Devilment_crit': BuffDC('crit', 20.0, 0.2),
+                      'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
+                      'testTeam': BuffDC('crit', 2.5, 0.2),
+                      'testTarget': BuffDC('spd', 10.0, 1.5)}
         self.resources = {}
         self.actions = {}
         self.last_time_check = 0.0  # the last time this player had their timers updated
@@ -55,6 +61,20 @@ class BaseActor:
 
         return self.auto_potency, self.buff_state()
 
+    def go_to_gcd(self):
+        # jump to the next gcd
+        self.next_event = self.next_gcd
+
+        return None, 0.0
+
+    def pass_ogcd(self):
+        # find next ogcd window and then jump to it
+        # TO-DO: put in options for late-weave ogcds
+        self.next_ogcd += 0.6
+        self.next_event = min(self.next_gcd, self.next_ogcd)
+
+        return None, 0.0
+
     def initiate_action(self, action_name):
         # adjust the player's next_event time
         # TO-DO: handle more than just GCDs
@@ -64,15 +84,28 @@ class BaseActor:
         spd_mod = 1
         if action.spd_adjusted:
             spd_mod = self.spd_mod
-        self.next_event += action.gcd_lock * spd_mod
+
+        # put the action on cooldown
+        action.cooldown = action.recast * spd_mod
+
+        if action.type == 'gcd':
+            # roll GCD
+            self.next_gcd += action.gcd_lock * spd_mod
+            # and animation-lock to next oGCD slot
+            self.next_ogcd = self.next_event + (action.cast_time * spd_mod) + 0.6
+
+        if action.type == 'ogcd':
+            # just move up one animation-lock slot for now
+            # TO-DO: logic for late-weave slots
+            self.next_ogcd += 0.6
+
+        # find next open event slot
+        self.next_event = min(self.next_gcd, self.next_ogcd)
 
         return action_name, action.cast_time * spd_mod
 
     def perform_action(self, action):
         action = self.actions[action]
-
-        # put the action on cooldown
-        action.cooldown = action.recast
 
         # values to be returned
         potency = action.potency
@@ -134,7 +167,7 @@ class BaseActor:
             case 'dhit':
                 self.dhit_rate -= self.buffs[buff].value
             case 'spd':
-                self.gcd_time *= self.buffs[buff].value
+                self.spd_mod *= self.buffs[buff].value
 
         # insure the timer goes to zero upon removal
         self.buffs[buff].timer = 0
@@ -155,6 +188,10 @@ class BaseActor:
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
         time_change = current_time - self.last_time_check
+
+        # don't need to do anything if time is already caught up
+        if time_change == 0.0:
+            return
 
         # update all buff timers
         for buff, tracker in self.buffs.items():
@@ -182,7 +219,7 @@ class ActionDC:
     type: str  # 'gcd', 'ogcd'
     potency: int
     recast: float
-    gcd_lock: float
+    gcd_lock: float = 0
     cooldown: float = 0
     cast_time: float = 0  # This should be the the in-game "cast time" minus 0.5s for the snapshot point
     autocrit: bool = False

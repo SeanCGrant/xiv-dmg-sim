@@ -141,8 +141,13 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 if target_player == 'team':
                     # apply team buffs
                     for actor in actor_list:
+                        # update player's time
+                        actor.update_time(time)
+                        # apply buff
                         actor.apply_buff(buff)
                 else:
+                    # update player's time
+                    actor_list[target_player].update_time(time)
                     # apply self or targeted buff
                     actor_list[target_player].apply_buff(buff)
 
@@ -156,10 +161,13 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 print("Error: skipped a queue item (action)")
             elif action_queue[0][0] == time:
                 _, player, action_name = heapq.heappop(action_queue)
+
+                # update player's time
+                actor_list[player].update_time(time)
                 # execute action
                 event_pot, (event_M, event_crit, event_dhit), event_buffs =\
                     actor_list[player].perform_action(action_name)
-                event_type = "gcd"
+                event_type = actor_list[player].actions[action_name].type
                 log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, verbose)
 
                 # put buffs in the queue
@@ -195,8 +203,11 @@ def sim_battle(fight_length, actor_list, verbose=False):
         if event_loc[0] == 0:
             # select an action
             action_name, delay = actor_list[player].choose_action()
-            # put in action queue
-            heapq.heappush(action_queue, (time+delay, player, action_name))
+            if action_name is not None:
+                if player == 0:
+                    print(f"{action_name} \t\t\t time: {time} \t\t\t esprit: {actor_list[player].resources['esprit']}")
+                # put in action queue
+                heapq.heappush(action_queue, (time+delay, player, action_name))
             # update tracker for next event_pot
             event_tracker[0, player] = actor_list[player].next_event
         elif event_loc[0] == 1:
@@ -227,7 +238,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
         # to-do: include buff multipliers and trait eventually #
 
         # ability damage
-        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Type'] == 'gcd'), 'Flat Damage'] = \
+        battle_log.loc[(battle_log['Player'] == i) & ((battle_log['Type'] == 'gcd') | (battle_log['Type'] == 'ogcd')), 'Flat Damage'] = \
             pot_to_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det) * battle_log['Multiplier']
 
         # auto damage

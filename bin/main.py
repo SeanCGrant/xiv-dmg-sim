@@ -15,9 +15,9 @@ if __name__ == '__main__':
 
     # Replay the fight multiple times to build statistics
     dmg_list = []
-    battle_iterations = 5  # iterations for stochastic fight rotation variance
+    battle_iterations = 1  # iterations for stochastic fight rotation variance
     rng_interatons = 100  # iterations for stochastic damage variance (crit, dhit, etc.)
-    fight_sim_duration = 120.0  # length of the fight in seconds
+    fight_sim_duration = 360.0  # length of the fight in seconds
 
     for i in range(battle_iterations):
         # be sure to reset the actors between iterations
