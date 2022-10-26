@@ -9,8 +9,8 @@ if __name__ == '__main__':
     start_time = time.perf_counter()
 
     # create character actors (by hand for now)
-    y = dnc.Actor(120, 2560, 1987, 510, 2000, 2000, 3.14)
-    z = dnc.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14)
+    y = dnc.Actor(120, 2560, 1987, 510, 2000, 2000, 3.14, partner=1)
+    z = dnc.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, partner=0)
     actor_list = [y, z]
 
     # Replay the fight multiple times to build statistics
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         print('############### Battle Iteration {} Done ###############'.format(i+1))
 
     print('First 20 rows of last battle sim:')
-    print(sim_log[['Time', 'Player', 'Ability', 'Potency', 'Multiplier', "Flat Damage", 'Crit Rate', "Full Damage"]][:60])
+    print(sim_log[['Time', 'Player', 'Type', 'Potency', 'Multiplier', "Flat Damage", 'Crit Rate', "Full Damage"]][:60])
 
     # End timer
     print("~~ Time: {} seconds".format(time.perf_counter() - start_time))

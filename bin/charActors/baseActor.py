@@ -18,12 +18,14 @@ class BaseActor:
         self.wpn_delay = wpn_delay
         self.ten = ten
         self.gcd_time = spd_from_stat(spd, 2500)  # override for jobs that aren't on 2.5 gcd (2500 ms)
+        self.spd_mod = 1.0
         self.next_event = 0.0
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
         self.dots = {}
         # will track all buffs, universal external buffs listed here, personal buffs added within each job
+        # TO-DO: add all targeted buffs here too
         self.buffs = {'Technical': BuffDC('dmg', 20.0, 1.05),
                       'testTeam': BuffDC('crit', 2.5, 0.2)}
         self.resources = {}
@@ -53,6 +55,13 @@ class BaseActor:
 
         return self.auto_potency, self.buff_state()
 
+    def initiate_action(self, action):
+        # adjust the player's next_event time
+        # TO-DO: handle more than just GCDs
+        self.next_event += self.actions[action].gcd_lock
+
+        return action, self.actions[action].cast_time
+
     def perform_action(self, action):
         action = self.actions[action]
 
@@ -71,12 +80,6 @@ class BaseActor:
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
 
-        # apply any self buffs, return any team buffs
-        team_buffs = action.buff_effect.get('team', [])
-        self_buffs = action.buff_effect.get('self', [])
-        for buff in self_buffs:
-            self.apply_buff(buff)
-
         # remove any buffs
         for buff in action.buff_removal:
             self.remove_buff(buff)
@@ -90,11 +93,7 @@ class BaseActor:
         for resource, val in action.resource.items():
             self.add_resource(resource, val)
 
-        # adjust the player's next_event time
-        # TO-DO: handle more than just GCDs
-        self.next_event += action.gcd_lock
-
-        return potency, (m, crit, dhit), team_buffs
+        return potency, (m, crit, dhit), action.buff_effect
 
     def apply_buff(self, buff):
         if isinstance(buff, tuple):
@@ -114,7 +113,7 @@ class BaseActor:
                     case 'dhit':
                         self.dhit_rate += self.buffs[buff].value
                     case 'spd':
-                        self.gcd_time /= self.buffs[buff].value
+                        self.spd_mod /= self.buffs[buff].value
 
             # apply the buff at full duration
             self.buffs[buff].timer = self.buffs[buff].duration
@@ -179,6 +178,7 @@ class ActionDC:
     recast: float
     gcd_lock: float
     cooldown: float = 0
+    cast_time: float = 0  # This should be the the in-game "cast time" minus 0.5s for the snapshot point
     autocrit: bool = False
     autodhit: bool = False
     buff_effect: dict = field(default_factory=dict)  # (['none', 'self', 'team'], ['none', '*buff name*'])
@@ -197,6 +197,7 @@ class BuffDC:
     type: str  # 'dmg', 'crit', 'dhit', 'spd'
     duration: float  # length of the buff
     value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
+    delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
     timer: float = 0.0  # the remaining time on the buff
 
     def update_time(self, time_change):

@@ -1,4 +1,5 @@
 # Module for functions used in the simulations
+import heapq
 
 import pandas as pd
 import numpy as np
@@ -67,18 +68,46 @@ def dot_dmg(pot, job_mod, trait, wd, ap, det, spd, tnc=400):
 def sim_battle(fight_length, actor_list, verbose=False):
 
     # Put an event into the battle log
-    def log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose):
+    def log_event(time, player, event_type, event_name, event_pot, event_crit, event_dhit, event_M, verbose):
         # create a line for the event, then add to the battle log
-        event_log = pd.Series({"Time": time, "Player": player, "Ability": event_name, "Potency": event_pot,
-                               "Crit Rate": event_crit, "Dhit Rate": event_dhit, "Multiplier": event_M,
-                               "Flat Damage": np.nan, "Full Damage": np.nan})
+        event_log = pd.Series({"Time": time, "Player": player, "Type": event_type, "Ability": event_name,
+                               "Potency": event_pot, "Crit Rate": event_crit, "Dhit Rate": event_dhit,
+                               "Multiplier": event_M, "Flat Damage": np.nan, "Full Damage": np.nan})
         nonlocal battle_log
         battle_log = pd.concat([battle_log, event_log.to_frame().T], ignore_index=True)
         if verbose:
             print('Time: {:.2f}\t\tPotency: {}'.format(time, event_pot))
 
+    # update time to next event
+    def new_time():
+        nonlocal time
+        nonlocal buff_counter
+        nonlocal action_queue
+        nonlocal event_tracker
+
+        time = np.min(event_tracker)
+        # check for action queue event
+        if action_queue:
+            time = min(time, action_queue[0][0])
+        # check for buff queue event
+        if buff_queue:
+            time = min(time, buff_queue[0][0])
+
+    # add a buff to the buff queue
+    def heap_add(heap, time, actor, target, buff):
+        nonlocal buff_counter
+
+        if isinstance(buff, tuple):
+            # buff/event has a probability to go off (some procs, for example)
+            if np.random.rand() < buff[1]:
+                heap_add(heap, time, actor, target, buff[0])
+        else:
+            heapq.heappush(heap, (time + actor.buffs[buff].delay, buff_counter, target, buff))
+
+            buff_counter += 1
+
     # create battle log
-    battle_log = pd.DataFrame(columns=["Time", "Player", "Ability", "Potency", "Crit Rate", "Dhit Rate",
+    battle_log = pd.DataFrame(columns=["Time", "Player", "Type", "Ability", "Potency", "Crit Rate", "Dhit Rate",
                                        "Multiplier", "Flat Damage", "Full Damage"])
 
     # initialize time
@@ -92,8 +121,61 @@ def sim_battle(fight_length, actor_list, verbose=False):
     # update with dot timers
     event_tracker[2] = [dot_tick] * len(actor_list)
 
+    # create a delay queue for delayed buff effects
+    buff_queue = []
+    buff_counter = 0
+
+    # create a delay queue for delayed actions
+    action_queue = []
+
     ### Play through time ###
     while time <= fight_length:
+
+        # Perform any effects that are ready from the buff queue
+        if bool(buff_queue):
+            if buff_queue[0][0] < time:
+                print("Error: skipped a queue item (buffs)")
+            elif buff_queue[0][0] == time:
+                _, _, target_player, buff = heapq.heappop(buff_queue)
+
+                if target_player == 'team':
+                    # apply team buffs
+                    for actor in actor_list:
+                        actor.apply_buff(buff)
+                else:
+                    # apply self or targeted buff
+                    actor_list[target_player].apply_buff(buff)
+
+                # update time to next event and continue
+                new_time()
+                continue
+
+        # perform any actions that are ready from the action queue
+        if bool(action_queue):
+            if action_queue[0][0] < time:
+                print("Error: skipped a queue item (action)")
+            elif action_queue[0][0] == time:
+                _, player, action_name = heapq.heappop(action_queue)
+                # execute action
+                event_pot, (event_M, event_crit, event_dhit), event_buffs =\
+                    actor_list[player].perform_action(action_name)
+                event_type = "gcd"
+                log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, verbose)
+
+                # put buffs in the queue
+                team_buffs = event_buffs.get('team', [])
+                self_buffs = event_buffs.get('self', [])
+                target_buffs = event_buffs.get('target', [])
+                for buff in team_buffs:
+                    heap_add(buff_queue, time, actor_list[player], 'team', buff)
+                for buff in self_buffs:
+                    heap_add(buff_queue, time, actor_list[player], player, buff)
+                for buff in target_buffs:
+                    heap_add(buff_queue, time, actor_list[player], actor_list[player].buff_target, buff)
+
+                # update time to next event and continue
+                new_time()
+                continue
 
         # either execute action or auto-attack as appropriate
         # find next event
@@ -111,17 +193,17 @@ def sim_battle(fight_length, actor_list, verbose=False):
             print(event_loc)
 
         if event_loc[0] == 0:
-            # execute action
-            event_pot, (event_M, event_crit, event_dhit), event_buff = actor_list[player].choose_action()
-            event_name = "gcd"
-            log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
+            # select an action
+            action_name, delay = actor_list[player].choose_action()
+            # put in action queue
+            heapq.heappush(action_queue, (time+delay, player, action_name))
             # update tracker for next event_pot
             event_tracker[0, player] = actor_list[player].next_event
         elif event_loc[0] == 1:
             # execute auto
             event_pot, (event_M, event_crit, event_dhit) = actor_list[player].inc_auto()
-            event_name = "auto"
-            log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
+            event_type = "auto"
+            log_event(time, player, event_type, "auto", event_pot, event_crit, event_dhit, event_M, verbose)
             # update tracker for next event_pot
             event_tracker[1, player] = actor_list[player].next_auto
         else:
@@ -130,20 +212,14 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 # log each dot individually (could have different buff snapshots)
                 if tracker.timer > 0:
                     event_pot, (event_M, event_crit, event_dhit) = tracker.potency, tracker.buff_snap
-                    event_name = "dot tick"
-                    log_event(time, player, event_name, event_pot, event_crit, event_dhit, event_M, verbose)
+                    event_type = "dot tick"
+                    log_event(time, player, event_type, "dot", event_pot, event_crit, event_dhit, event_M, verbose)
 
             # increment dot tracker
             event_tracker[2, player] = event_tracker[2, player] + 3
 
-        # apply team buffs
-        # TO-DO: team buffs should be applied after a short delay
-        for buff in event_buff:
-            for actor in actor_list:
-                actor.apply_buff(buff)
-
-        # update time to next event_pot
-        time = np.min(event_tracker)
+        # update time to next event
+        new_time()
 
     # calculate damage from the DataFrame, individualized to each player
     for i in range(len(actor_list)):
@@ -151,15 +227,15 @@ def sim_battle(fight_length, actor_list, verbose=False):
         # to-do: include buff multipliers and trait eventually #
 
         # ability damage
-        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'gcd'), 'Flat Damage'] = \
+        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Type'] == 'gcd'), 'Flat Damage'] = \
             pot_to_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det) * battle_log['Multiplier']
 
         # auto damage
-        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'auto'), 'Flat Damage'] = \
+        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Type'] == 'auto'), 'Flat Damage'] = \
             auto_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det, spd, wpn_delay)
 
         # dot damage
-        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Ability'] == 'dot tick'), 'Flat Damage'] = \
+        battle_log.loc[(battle_log['Player'] == i) & (battle_log['Type'] == 'dot tick'), 'Flat Damage'] = \
             dot_dmg(battle_log['Potency'], job_mod, trait, wd, ap, det, spd)
 
     tot_dmg = battle_log['Flat Damage'].sum()
