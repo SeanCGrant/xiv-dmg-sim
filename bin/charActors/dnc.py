@@ -24,7 +24,7 @@ class Actor(BaseActor):
                  'Starfall': BuffDC('logistic', 20.0),
                  'Standard': BuffDC('dmg', 60.0, 1.05),
                  'testSelf': BuffDC('dmg', 10.0, 3.0),
-                 'testTarget': BuffDC('spd', 10, 1.5)}
+                 'testTarget': BuffDC('spd', 10.0, 1.5)}
         self.buffs.update(buffs)
 
         # dnc needs a buff target (dance partner)
@@ -51,12 +51,15 @@ class Actor(BaseActor):
                                           resource={'esprit': -50},
                                           buff_effect={'target': ['testTarget']}),
                    'StandardStep': ActionDC('gcd', 720, 30.0, 5.0,
+                                            spd_adjusted=False,
                                             cast_time=3.5,
                                             buff_effect={'self': ['Standard']}),
                    'TechnicalStep': ActionDC('gcd', 1200, 120.0, 7.0,
+                                             spd_adjusted=False,
                                              cast_time=5.5,
                                              buff_effect={'self': ['Tillana'], 'team': ['Technical']}),
                    'Tillana': ActionDC('gcd', 360, 1.5, 1.5,
+                                       spd_adjusted=False,
                                        buff_effect={'self': ['Standard']},
                                        buff_removal=['Tillana']),
                    'Starfall': ActionDC('gcd', 600, self.gcd_time, self.gcd_time,

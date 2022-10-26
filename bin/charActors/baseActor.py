@@ -55,12 +55,18 @@ class BaseActor:
 
         return self.auto_potency, self.buff_state()
 
-    def initiate_action(self, action):
+    def initiate_action(self, action_name):
         # adjust the player's next_event time
         # TO-DO: handle more than just GCDs
-        self.next_event += self.actions[action].gcd_lock
+        action = self.actions[action_name]
 
-        return action, self.actions[action].cast_time
+        # apply any haste buffs, if the action is affected
+        spd_mod = 1
+        if action.spd_adjusted:
+            spd_mod = self.spd_mod
+        self.next_event += action.gcd_lock * spd_mod
+
+        return action_name, action.cast_time * spd_mod
 
     def perform_action(self, action):
         action = self.actions[action]
@@ -181,6 +187,7 @@ class ActionDC:
     cast_time: float = 0  # This should be the the in-game "cast time" minus 0.5s for the snapshot point
     autocrit: bool = False
     autodhit: bool = False
+    spd_adjusted: bool = True
     buff_effect: dict = field(default_factory=dict)  # (['none', 'self', 'team'], ['none', '*buff name*'])
     buff_removal: list = field(default_factory=list)  # ['*buff names*']
     dot_effect: str = 'none'  # 'none', '*dot name*'
