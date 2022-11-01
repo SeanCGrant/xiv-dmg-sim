@@ -102,7 +102,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
             if np.random.rand() < buff[1]:
                 heap_add(heap, time, actor, target, buff[0])
         else:
-            heapq.heappush(heap, (time + actor.buffs[buff].delay, buff_counter, target, buff))
+            heapq.heappush(heap, (time + actor.buffs[buff].delay, buff_counter, actor.player_id, target, buff))
 
             buff_counter += 1
 
@@ -136,7 +136,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
             if buff_queue[0][0] < time:
                 print("Error: skipped a queue item (buffs)")
             elif buff_queue[0][0] == time:
-                _, _, target_player, buff = heapq.heappop(buff_queue)
+                _, _, giver_id, target_player, buff = heapq.heappop(buff_queue)
 
                 if target_player == 'team':
                     # apply team buffs
@@ -144,12 +144,13 @@ def sim_battle(fight_length, actor_list, verbose=False):
                         # update player's time
                         actor.update_time(time)
                         # apply buff
-                        actor.apply_buff(buff)
+                        actor.apply_buff(buff, giver_id=giver_id)
                 else:
+                    actor = actor_list[target_player]
                     # update player's time
-                    actor_list[target_player].update_time(time)
-                    # apply self or targeted buff
-                    actor_list[target_player].apply_buff(buff)
+                    actor.update_time(time)
+                    # apply given buff
+                    actor.apply_buff(buff, giver_id=giver_id)
 
                 # update time to next event and continue
                 new_time()
@@ -165,10 +166,33 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 # update player's time
                 actor_list[player].update_time(time)
                 # execute action
-                event_pot, (event_M, event_crit, event_dhit), event_buffs =\
+                event_pot, (event_M, event_crit, event_dhit), event_buffs, event_type =\
                     actor_list[player].perform_action(action_name)
-                event_type = actor_list[player].actions[action_name].type
                 log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, verbose)
+
+                # distribute any given resources
+                # check if player has any tracked buffs, and whether this action can give
+                if (actor_list[player].buff_tracked) & (actor_list[player].actions[action_name].type == 'gcd'):
+                    for buff in actor_list[player].tracked_buffs:
+                        tracked_buff = actor_list[player].buffs[buff]
+
+                        # Self-given buffs don't count (maybe?)
+                        if player != tracked_buff.buff_giver:
+                            # Tech overrides Standard
+                            if buff == 'TechEsprit':
+                                if tracked_buff.timer > 0:
+                                    tech_override = True
+                                else:
+                                    tech_override = False
+                            if (buff == 'StandardEsprit') & (tech_override):
+                                continue
+
+                            # check that the buff is still active, and roll the dice on rng
+                            if (tracked_buff.timer > 0) & (tracked_buff.gift['rng'] > np.random.rand()):
+                                print(f"from player: {player} \t to player: {tracked_buff.buff_giver}")
+                                # give the resource
+                                actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']] +=\
+                                    tracked_buff.gift['value']
 
                 # put buffs in the queue
                 team_buffs = event_buffs.get('team', [])

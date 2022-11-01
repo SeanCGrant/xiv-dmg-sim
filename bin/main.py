@@ -9,8 +9,8 @@ if __name__ == '__main__':
     start_time = time.perf_counter()
 
     # create character actors (by hand for now)
-    y = dnc.Actor(120, 2560, 1987, 510, 2000, 2000, 3.14, partner=1)
-    z = dnc.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, partner=0)
+    y = dnc.Actor(120, 2560, 1987, 510, 2000, 2000, 3.14, player_id=0, partner=1)
+    z = dnc.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1, partner=0)
     actor_list = [y, z]
 
     # Replay the fight multiple times to build statistics
