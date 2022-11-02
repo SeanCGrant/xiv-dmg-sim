@@ -13,7 +13,7 @@ class Actor(BaseActor):
         super().__init__(jobMod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, player_id=player_id)
 
         # override auto potency
-        self.auto_potency = 80  # check this value
+        self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
 
         # dnc specific resources
         self.resources = {'esprit': 0, 'feathers': 0}
@@ -23,8 +23,7 @@ class Actor(BaseActor):
                  'FF': BuffDC('logistic', 30.0), 'Tillana': BuffDC('logistic', 30.0),
                  'Starfall': BuffDC('logistic', 20.0), 'Threefold': BuffDC('logistic', 30.0),
                  'Fourfold': BuffDC('logistic', 30.0), 'FlourishingRC': BuffDC('logistic', 30.0),
-                 'FlourishingFF': BuffDC('logistic', 30.0),
-                 'testSelf': BuffDC('dmg', 10.0, 3.0)}
+                 'FlourishingFF': BuffDC('logistic', 30.0)}
         self.buffs.update(buffs)
 
         # dnc needs a buff target (dance partner)
@@ -33,14 +32,12 @@ class Actor(BaseActor):
         # dnc actions
         actions = {'Cascade': ActionDC('gcd', 220, self.gcd_time, self.gcd_time, 0.0,
                                        buff_effect={'self': ['F', ('RC', 0.5)]},
-                                       resource={'esprit': 5},
-                                       dot_effect='TestDot'),
+                                       resource={'esprit': 5}),
                    'Fountain': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
                                         buff_effect={'self': [('FF', 0.5)]},
                                         buff_removal=['F'],
                                         resource={'esprit': 5}),
                    'ReverseCascade': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
-                                              buff_effect={'team': ['testTeam']},
                                               buff_removal=['RC'],
                                               resource={'esprit': 10, 'feathers': (1, 0.5)}),
                    'FlourishingReverseCascade': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
@@ -87,7 +84,7 @@ class Actor(BaseActor):
         self.actions.update(actions)
 
         # dnc dots
-        dots = {'TestDot': DotDC(50, 15, self.buff_state())}
+        dots = {}
         self.dots.update(dots)
 
     def choose_action(self):

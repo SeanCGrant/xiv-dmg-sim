@@ -30,7 +30,7 @@ class BaseActor:
         self.dots = {}
         # will track all buffs, universal external buffs listed here, personal buffs added within each job
         # TO-DO: add all targeted buffs here too
-        self.buffs = {'Technical': BuffDC('dmg', 20.0, 1.05),
+        self.buffs = {'Technical': BuffDC('dmg', 20.5, 1.05),
                       'TechEsprit': TargetedBuff('given', 20.0,
                                                  gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
                       'Standard': BuffDC('dmg', 60.0, 1.05),
@@ -38,8 +38,8 @@ class BaseActor:
                                                      gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
                       'Devilment_crit': BuffDC('crit', 20.0, 0.2),
                       'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
-                      'testTeam': BuffDC('crit', 2.5, 0.2),
-                      'testTarget': BuffDC('spd', 10.0, 1.5)}
+                      'Divination': BuffDC('dmg', 15.0, 1.06),
+                      'BattleLitany': BuffDC('crit', 15.0, 0.1)}
         self.tracked_buffs = ['TechEsprit', 'StandardEsprit']
         self.buff_tracked = False
         self.resources = {}
@@ -87,7 +87,7 @@ class BaseActor:
         action = self.actions[action_name]
 
         # check the cooldown
-        if action.cooldown > 0.0:
+        if action.cooldown > 0.00005:  # wiggle room for float precision
             return False
         # check for proc (logistical buffs, usually)
         for proc in action.buff_removal:
@@ -124,6 +124,8 @@ class BaseActor:
             # just move up one animation-lock slot for now
             # TO-DO: logic for late-weave slots
             self.next_ogcd += action.anim_lock
+            # Force animation lock on next GCD if applicable
+            self.next_gcd = max(self.next_gcd, self.next_ogcd)
 
         # find next open event slot
         self.next_event = min(self.next_gcd, self.next_ogcd)
@@ -176,7 +178,7 @@ class BaseActor:
                     case 'dhit':
                         self.dhit_rate += self.buffs[buff].value
                     case 'spd':
-                        self.spd_mod /= self.buffs[buff].value
+                        self.spd_mod *= (1 - self.buffs[buff].value)
                     case 'given':
                         # make sure the player is flagged as having a tracked buff
                         self.buff_tracked = True
@@ -198,7 +200,7 @@ class BaseActor:
             case 'dhit':
                 self.dhit_rate -= self.buffs[buff].value
             case 'spd':
-                self.spd_mod *= self.buffs[buff].value
+                self.spd_mod /= (1 - self.buffs[buff].value)
             case 'given':
                 # remove the tracked flag...
                 self.buff_tracked = False

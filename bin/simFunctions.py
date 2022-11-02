@@ -176,20 +176,18 @@ def sim_battle(fight_length, actor_list, verbose=False):
                     for buff in actor_list[player].tracked_buffs:
                         tracked_buff = actor_list[player].buffs[buff]
 
-                        # Self-given buffs don't count (maybe?)
+                        # Self-given buffs don't count (does monk?)
                         if player != tracked_buff.buff_giver:
                             # Tech overrides Standard
+                            tech_override = False
                             if buff == 'TechEsprit':
                                 if tracked_buff.timer > 0:
                                     tech_override = True
-                                else:
-                                    tech_override = False
                             if (buff == 'StandardEsprit') & (tech_override):
                                 continue
 
                             # check that the buff is still active, and roll the dice on rng
                             if (tracked_buff.timer > 0) & (tracked_buff.gift['rng'] > np.random.rand()):
-                                print(f"from player: {player} \t to player: {tracked_buff.buff_giver}")
                                 # give the resource
                                 actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']] +=\
                                     tracked_buff.gift['value']
