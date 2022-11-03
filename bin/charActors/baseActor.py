@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 # Create a base class for the character actors
 class BaseActor:
 
-    def __init__(self, job_mod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400):
+    def __init__(self, job_mod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, anim_lock=0.65, *, player_id):
+        self.player_id = player_id
         self.jobMod = job_mod
         self.trait = trait
         self.wd = wd
@@ -17,15 +18,30 @@ class BaseActor:
         self.dhit = dhit
         self.wpn_delay = wpn_delay
         self.ten = ten
-        self.gcd_time = spd_from_stat(spd, 2500)  # override for jobs that aren't on 2.5 gcd (2500 ms)
+        self.gcd_time = spd_from_stat(spd, 2500) + 0.005  # [fps estimate included] override for jobs that aren't on 2.5 gcd (2500 ms)
+        self.anim_lock = anim_lock
+        self.spd_mod = 1.0
+        self.next_gcd = 0.0
+        self.next_ogcd = 0.0
         self.next_event = 0.0
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
         self.dots = {}
         # will track all buffs, universal external buffs listed here, personal buffs added within each job
-        self.buffs = {'Technical': BuffDC('dmg', 20.0, 1.05),
-                      'testTeam': BuffDC('crit', 2.5, 0.2)}
+        # TO-DO: add all targeted buffs here too
+        self.buffs = {'Technical': BuffDC('dmg', 20.5, 1.05),
+                      'TechEsprit': TargetedBuff('given', 20.0,
+                                                 gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
+                      'Standard': BuffDC('dmg', 60.0, 1.05),
+                      'StandardEsprit': TargetedBuff('given', 20.0,
+                                                     gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
+                      'Devilment_crit': BuffDC('crit', 20.0, 0.2),
+                      'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
+                      'Divination': BuffDC('dmg', 15.0, 1.06),
+                      'BattleLitany': BuffDC('crit', 15.0, 0.1)}
+        self.tracked_buffs = ['TechEsprit', 'StandardEsprit']
+        self.buff_tracked = False
         self.resources = {}
         self.actions = {}
         self.last_time_check = 0.0  # the last time this player had their timers updated
@@ -53,11 +69,71 @@ class BaseActor:
 
         return self.auto_potency, self.buff_state()
 
-    def perform_action(self, action):
-        action = self.actions[action]
+    def go_to_gcd(self):
+        # jump to the next gcd
+        self.next_event = self.next_gcd
+
+        return None, 0.0
+
+    def pass_ogcd(self):
+        # find next ogcd window and then jump to it
+        # TO-DO: put in options for late-weave ogcds
+        self.next_ogcd += self.anim_lock
+        self.next_event = min(self.next_gcd, self.next_ogcd)
+
+        return None, 0.0
+
+    def allowed_action(self, action_name):
+        action = self.actions[action_name]
+
+        # check the cooldown
+        if action.cooldown > 0.00005:  # wiggle room for float precision
+            return False
+        # check for proc (logistical buffs, usually)
+        for proc in action.buff_removal:
+            if self.buffs[proc].timer <= 0.0:
+                return False
+        # check for necessary resources
+        for resource, val in action.resource.items():
+            if isinstance(val, tuple):
+                # No rng consumed resources exist, so if it has rng, it is a gained resource
+                continue
+            if (val < 0) & (self.resources[resource] < val * -1):
+                return False
+        return True
+
+    def initiate_action(self, action_name):
+        # adjust the player's next_event time
+        action = self.actions[action_name]
+
+        # apply any haste buffs, if the action is affected
+        spd_mod = 1
+        if action.spd_adjusted:
+            spd_mod = self.spd_mod
 
         # put the action on cooldown
-        action.cooldown = action.recast
+        action.cooldown = action.recast * spd_mod
+
+        if action.type == 'gcd':
+            # roll GCD
+            self.next_gcd += action.gcd_lock * spd_mod
+            # and animation-lock to next oGCD slot
+            self.next_ogcd = self.next_event + (action.cast_time * spd_mod) + action.anim_lock
+
+        if action.type == 'ogcd':
+            # just move up one animation-lock slot for now
+            # TO-DO: logic for late-weave slots
+            self.next_ogcd += action.anim_lock
+            # Force animation lock on next GCD if applicable
+            self.next_gcd = max(self.next_gcd, self.next_ogcd)
+
+        # find next open event slot
+        self.next_event = min(self.next_gcd, self.next_ogcd)
+
+        return action_name, action.cast_time * spd_mod
+
+    def perform_action(self, action):
+        action = self.actions[action]
 
         # values to be returned
         potency = action.potency
@@ -70,12 +146,6 @@ class BaseActor:
             dhit = 1.0
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
-
-        # apply any self buffs, return any team buffs
-        team_buffs = action.buff_effect.get('team', [])
-        self_buffs = action.buff_effect.get('self', [])
-        for buff in self_buffs:
-            self.apply_buff(buff)
 
         # remove any buffs
         for buff in action.buff_removal:
@@ -90,13 +160,9 @@ class BaseActor:
         for resource, val in action.resource.items():
             self.add_resource(resource, val)
 
-        # adjust the player's next_event time
-        # TO-DO: handle more than just GCDs
-        self.next_event += action.gcd_lock
+        return potency, (m, crit, dhit), action.buff_effect, action.type
 
-        return potency, (m, crit, dhit), team_buffs
-
-    def apply_buff(self, buff):
+    def apply_buff(self, buff, *, giver_id=10):
         if isinstance(buff, tuple):
             # buff has a probability to go off (some procs, for example)
             if np.random.rand() < buff[1]:
@@ -105,8 +171,6 @@ class BaseActor:
             if self.buffs[buff].timer == 0:
                 # only apply the effect of the buff if actually new (not refreshing)
                 match self.buffs[buff].type:
-                    case 'logistic':
-                        pass
                     case 'dmg':
                         self.total_buff_mult *= self.buffs[buff].value
                     case 'crit':
@@ -114,7 +178,14 @@ class BaseActor:
                     case 'dhit':
                         self.dhit_rate += self.buffs[buff].value
                     case 'spd':
-                        self.gcd_time /= self.buffs[buff].value
+                        self.spd_mod *= (1 - self.buffs[buff].value)
+                    case 'given':
+                        # make sure the player is flagged as having a tracked buff
+                        self.buff_tracked = True
+
+            # update the buffs giver, if it is a given-tracked buff
+            if self.buffs[buff].type == 'given':
+                self.buffs[buff].buff_giver = giver_id
 
             # apply the buff at full duration
             self.buffs[buff].timer = self.buffs[buff].duration
@@ -129,7 +200,15 @@ class BaseActor:
             case 'dhit':
                 self.dhit_rate -= self.buffs[buff].value
             case 'spd':
-                self.gcd_time *= self.buffs[buff].value
+                self.spd_mod /= (1 - self.buffs[buff].value)
+            case 'given':
+                # remove the tracked flag...
+                self.buff_tracked = False
+                # ...but only if there are no other tracked buffs
+                for tracked_buff in self.tracked_buffs:
+                    if self.buffs[tracked_buff].timer > 0:
+                        self.buff_tracked = True
+                        break
 
         # insure the timer goes to zero upon removal
         self.buffs[buff].timer = 0
@@ -151,6 +230,10 @@ class BaseActor:
         # adjust player timers based on how long it has been since the last update
         time_change = current_time - self.last_time_check
 
+        # don't need to do anything if time is already caught up
+        if time_change == 0.0:
+            return
+
         # update all buff timers
         for buff, tracker in self.buffs.items():
             # also check for buff removal
@@ -158,6 +241,8 @@ class BaseActor:
                 if tracker.type != 'logistic':
                     # remove buff effect
                     self.remove_buff(buff)
+                else:
+                    print(f"Lost a Proc!!??\t{buff}")
 
         # update all dot timers
         for dot, tracker in self.dots.items():
@@ -177,11 +262,14 @@ class ActionDC:
     type: str  # 'gcd', 'ogcd'
     potency: int
     recast: float
-    gcd_lock: float
+    gcd_lock: float = 0
     cooldown: float = 0
+    cast_time: float = 0  # This should be the the in-game "cast time" minus 0.5s for the snapshot point
+    anim_lock: float = 0.65
     autocrit: bool = False
     autodhit: bool = False
-    buff_effect: dict = field(default_factory=dict)  # (['none', 'self', 'team'], ['none', '*buff name*'])
+    spd_adjusted: bool = True
+    buff_effect: dict = field(default_factory=dict)  # (['self', 'team', 'target']: ['*buff names*'])
     buff_removal: list = field(default_factory=list)  # ['*buff names*']
     dot_effect: str = 'none'  # 'none', '*dot name*'
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
@@ -197,6 +285,7 @@ class BuffDC:
     type: str  # 'dmg', 'crit', 'dhit', 'spd'
     duration: float  # length of the buff
     value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
+    delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
     timer: float = 0.0  # the remaining time on the buff
 
     def update_time(self, time_change):
@@ -209,6 +298,13 @@ class BuffDC:
             self.timer = max(self.timer - time_change, 0)
 
         return remove
+
+
+@dataclass
+class TargetedBuff(BuffDC):
+    # only for  buffs that need to track back to their giver, generally for resource generation
+    buff_giver: int = field(kw_only=True, default=10)
+    gift: dict = field(default_factory=dict)  # {'name': , 'value': , 'rng': }
 
 
 @dataclass
