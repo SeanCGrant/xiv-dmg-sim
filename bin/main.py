@@ -14,7 +14,7 @@ if __name__ == '__main__':
     player1 = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1)
     player2 = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
     player3 = blm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
-    player4 = ast.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
+    player4 = ast.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=2)
     player5 = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
     player6 = drk.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
     player7 = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
@@ -23,8 +23,8 @@ if __name__ == '__main__':
     # Replay the fight multiple times to build statistics
     dmg_list = []
     battle_iterations = 1  # iterations for stochastic fight rotation variance
-    rng_interatons = 100  # iterations for stochastic damage variance (crit, dhit, etc.)
-    fight_sim_duration = 360.0  # length of the fight in seconds
+    rng_iterations = 100  # iterations for stochastic damage variance (crit, dhit, etc.)
+    fight_sim_duration = 480.0  # length of the fight in seconds
 
     for i in range(battle_iterations):
         # be sure to reset the actors between iterations
@@ -33,7 +33,7 @@ if __name__ == '__main__':
         dmg, sim_log = sim_battle(fight_sim_duration, actor_list, False)
 
         # Calculate stochastic damage multiple times to build statistics
-        for j in range(rng_interatons):
+        for j in range(rng_iterations):
             # roll one damage iteration
             damage_iteration(actor_list, sim_log)
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     print('First 20 rows of last battle sim:')
     print(sim_log.loc[sim_log['Player']==0][['Time', 'Player', 'Type', 'Multiplier', 'Crit Rate', "Full Damage"]][:60])
 
-    print(f"mean damage: {np.mean(dmg_list) / (fight_sim_duration - 3.5)}")
+    print(f"mean damage: {np.mean(dmg_list) / (fight_sim_duration - 3.5)}")  # subtracting 3.5 for the "prepull dance prep"
 
     # End timer
     print("~~ Time: {} seconds".format(time.perf_counter() - start_time))

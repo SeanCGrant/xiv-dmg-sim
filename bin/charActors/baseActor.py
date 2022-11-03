@@ -18,7 +18,7 @@ class BaseActor:
         self.dhit = dhit
         self.wpn_delay = wpn_delay
         self.ten = ten
-        self.gcd_time = spd_from_stat(spd, 2500)  # override for jobs that aren't on 2.5 gcd (2500 ms)
+        self.gcd_time = spd_from_stat(spd, 2500) + 0.005  # [fps estimate included] override for jobs that aren't on 2.5 gcd (2500 ms)
         self.anim_lock = anim_lock
         self.spd_mod = 1.0
         self.next_gcd = 0.0
@@ -241,6 +241,8 @@ class BaseActor:
                 if tracker.type != 'logistic':
                     # remove buff effect
                     self.remove_buff(buff)
+                else:
+                    print(f"Lost a Proc!!??\t{buff}")
 
         # update all dot timers
         for dot, tracker in self.dots.items():

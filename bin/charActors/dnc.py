@@ -158,29 +158,31 @@ class Actor(BaseActor):
                     if self.allowed_action(action):
                         return self.initiate_action(action)
                 # basic gcd priority
-                action = 'Fountainfall'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                if self.buffs['F'].timer > 0:
+                    action = 'Fountainfall'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
 
-                action = 'ReverseCascade'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                    action = 'FlourishingFountainfall'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
 
-                action = 'FlourishingFountainfall'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                    action = 'Fountain'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
 
-                action = 'FlourishingReverseCascade'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                else:
+                    action = 'ReverseCascade'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
 
-                action = 'Fountain'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                    action = 'FlourishingReverseCascade'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
 
-                action = 'Cascade'
-                if self.allowed_action(action):
-                    return self.initiate_action(action)
+                    action = 'Cascade'
+                    if self.allowed_action(action):
+                        return self.initiate_action(action)
         else:
             # consider using oGCDs
             if self.next_event + self.anim_lock > self.next_gcd:

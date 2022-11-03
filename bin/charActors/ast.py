@@ -51,7 +51,7 @@ class Actor(BaseActor):
                 if self.allowed_action(action):
                     return self.initiate_action(action)
             # no other oGCDs on the dummy actor
-            return self.go_to_gcd()
+            return self.pass_ogcd()
 
     def reset(self):
         # reset the actor (clears buff and proc timers, etc.)
