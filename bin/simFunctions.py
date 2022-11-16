@@ -1,6 +1,6 @@
 # Module for functions used in the simulations
+import copy
 import heapq
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -68,11 +68,14 @@ def dot_dmg(pot, job_mod, trait, wd, ap, det, spd, tnc=400):
 def sim_battle(fight_length, actor_list, verbose=False):
 
     # Put an event into the battle log
-    def log_event(time, player, event_type, event_name, event_pot, event_crit, event_dhit, event_M, verbose):
+    def log_event(time, player, event_type, event_name, event_pot, event_crit, event_dhit, event_M, resources, verbose):
+        # We want a snapshot of the resources, not the object itself
+        resources = copy.deepcopy(resources)
         # create a line for the event, then add to the battle log
         event_log = pd.Series({"Time": time, "Player": player, "Type": event_type, "Ability": event_name,
                                "Potency": event_pot, "Crit Rate": event_crit, "Dhit Rate": event_dhit,
-                               "Multiplier": event_M, "Flat Damage": np.nan, "Full Damage": np.nan})
+                               "Multiplier": event_M, "Flat Damage": np.nan, "Full Damage": np.nan,
+                               "Resources": resources})
         nonlocal battle_log
         battle_log = pd.concat([battle_log, event_log.to_frame().T], ignore_index=True)
         if verbose:
@@ -108,7 +111,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
     # create battle log
     battle_log = pd.DataFrame(columns=["Time", "Player", "Type", "Ability", "Potency", "Crit Rate", "Dhit Rate",
-                                       "Multiplier", "Flat Damage", "Full Damage"])
+                                       "Multiplier", "Flat Damage", "Full Damage", "Resources"])
 
     # initialize time
     time = 0.0
@@ -168,7 +171,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 # execute action
                 event_pot, (event_M, event_crit, event_dhit), event_buffs, event_type =\
                     actor_list[player].perform_action(action_name)
-                log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, verbose)
+                log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
 
                 # distribute any given resources
                 # check if player has any tracked buffs, and whether this action can give
@@ -236,7 +239,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
             # execute auto
             event_pot, (event_M, event_crit, event_dhit) = actor_list[player].inc_auto()
             event_type = "auto"
-            log_event(time, player, event_type, "auto", event_pot, event_crit, event_dhit, event_M, verbose)
+            log_event(time, player, event_type, "auto", event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
             # update tracker for next event_pot
             event_tracker[1, player] = actor_list[player].next_auto
         else:
@@ -246,7 +249,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 if tracker.timer > 0:
                     event_pot, (event_M, event_crit, event_dhit) = tracker.potency, tracker.buff_snap
                     event_type = "dot tick"
-                    log_event(time, player, event_type, "dot", event_pot, event_crit, event_dhit, event_M, verbose)
+                    log_event(time, player, event_type, "dot", event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
 
             # increment dot tracker
             event_tracker[2, player] = event_tracker[2, player] + 3
@@ -257,7 +260,6 @@ def sim_battle(fight_length, actor_list, verbose=False):
     # calculate damage from the DataFrame, individualized to each player
     for i in range(len(actor_list)):
         job_mod, trait, wd, ap, det, spd, wpn_delay, ten = actor_list[i].char_stats()
-        # to-do: include buff multipliers and trait eventually #
 
         # ability damage
         battle_log.loc[(battle_log['Player'] == i) & ((battle_log['Type'] == 'gcd') | (battle_log['Type'] == 'ogcd')), 'Flat Damage'] = \
