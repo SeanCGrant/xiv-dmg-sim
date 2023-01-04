@@ -80,7 +80,9 @@ class Actor(BaseActor):
                                                               'Threefold', 'Fourfold']}),
                    'Devilment': ActionDC('ogcd', 0, 120.0,
                                          buff_effect={'self': ['Devilment_crit', 'Devilment_dhit', 'Starfall'],
-                                                      'target': ['Devilment_crit', 'Devilment_dhit']})}
+                                                      'target': ['Devilment_crit', 'Devilment_dhit']}),
+                   'Charger': ActionDC('ogcd', 10, 1.0,
+                                       max_charges=3, charge_time=30.0)}
         self.actions.update(actions)
 
         # dnc dots

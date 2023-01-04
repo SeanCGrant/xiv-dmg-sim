@@ -88,13 +88,13 @@ def sim_battle(fight_length, actor_list, verbose=False):
         nonlocal action_queue
         nonlocal event_tracker
 
-        time = np.min(event_tracker)
+        time = round(np.min(event_tracker), 3)
         # check for action queue event
         if action_queue:
-            time = min(time, action_queue[0][0])
+            time = round(min(time, action_queue[0][0]), 3)
         # check for buff queue event
         if buff_queue:
-            time = min(time, buff_queue[0][0])
+            time = round(min(time, buff_queue[0][0]), 3)
 
     # add a buff to the buff queue
     def heap_add(heap, time, actor, target, buff):
@@ -105,7 +105,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
             if np.random.rand() < buff[1]:
                 heap_add(heap, time, actor, target, buff[0])
         else:
-            heapq.heappush(heap, (time + actor.buffs[buff].delay, buff_counter, actor.player_id, target, buff))
+            heapq.heappush(heap, (round(time + actor.buffs[buff].delay, 3), buff_counter, actor.player_id, target, buff))
 
             buff_counter += 1
 
@@ -229,10 +229,10 @@ def sim_battle(fight_length, actor_list, verbose=False):
             # select an action
             action_name, delay = actor_list[player].choose_action()
             if action_name is not None:
-                if player == 0:
-                    pass #print(f"{action_name} \t\t\t time: {time} \t\t\t esprit: {actor_list[player].resources['esprit']}")
+                if player in [0]:
+                    pass #print(f"{action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
                 # put in action queue
-                heapq.heappush(action_queue, (time+delay, player, action_name))
+                heapq.heappush(action_queue, (round(time+delay, 3), player, action_name))
             # update tracker for next event_pot
             event_tracker[0, player] = actor_list[player].next_event
         elif event_loc[0] == 1:

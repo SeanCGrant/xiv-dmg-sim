@@ -86,8 +86,11 @@ class BaseActor:
     def allowed_action(self, action_name):
         action = self.actions[action_name]
 
-        # check the cooldown
-        if action.cooldown > 0.00005:  # wiggle room for float precision
+        # Check the charges
+        if action.charge_count < 1:
+            return False
+        # check the cooldown (REMOVE?)
+        if action.cooldown > 0.00005:  # wiggle room for float precision (TO-DO: floor values appropriately)
             return False
         # check for proc (logistical buffs, usually)
         for proc in action.buff_removal:
@@ -111,19 +114,25 @@ class BaseActor:
         if action.spd_adjusted:
             spd_mod = self.spd_mod
 
+        # If action was at max charges, start the charge cooldown
+        if action.charge_count == action.max_charges:
+            action.charge_cd = action.charge_time * spd_mod
+        # Use a charge
+        action.charge_count -= 1
+
         # put the action on cooldown
         action.cooldown = action.recast * spd_mod
 
         if action.type == 'gcd':
             # roll GCD
-            self.next_gcd += action.gcd_lock * spd_mod
+            self.next_gcd += round(action.gcd_lock * spd_mod, 3)
             # and animation-lock to next oGCD slot
-            self.next_ogcd = self.next_event + (action.cast_time * spd_mod) + action.anim_lock
+            self.next_ogcd = round(self.next_event + (action.cast_time * spd_mod) + action.anim_lock, 3)
 
         if action.type == 'ogcd':
             # just move up one animation-lock slot for now
             # TO-DO: logic for late-weave slots
-            self.next_ogcd += action.anim_lock
+            self.next_ogcd = round(self.next_ogcd + action.anim_lock, 3)
             # Force animation lock on next GCD if applicable
             self.next_gcd = max(self.next_gcd, self.next_ogcd)
 
@@ -228,7 +237,7 @@ class BaseActor:
 
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
-        time_change = current_time - self.last_time_check
+        time_change = round(current_time - self.last_time_check, 3)
 
         # don't need to do anything if time is already caught up
         if time_change == 0.0:
@@ -252,6 +261,9 @@ class BaseActor:
         for action, tracker in self.actions.items():
             tracker.update_time(time_change)
 
+        # Update resource timers
+
+
         # update last time check to now
         self.last_time_check = current_time
 
@@ -261,10 +273,14 @@ class ActionDC:
     # a class to hold the information for each available action
     type: str  # 'gcd', 'ogcd'
     potency: int
-    recast: float
+    recast: float = 2.5
     gcd_lock: float = 0
-    cooldown: float = 0
-    cast_time: float = 0  # This should be the the in-game "cast time" minus 0.5s for the snapshot point
+    cooldown: float = 0  # The recast cooldown
+    cast_time: float = 0  # This should be the in-game "cast time" minus 0.5s for the snapshot point
+    max_charges: int = 1
+    charge_count: int = -1
+    charge_time: float = 0.0
+    charge_cd: float = 0.0  # The recharge cooldown
     anim_lock: float = 0.65
     autocrit: bool = False
     autodhit: bool = False
@@ -275,8 +291,34 @@ class ActionDC:
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
 
+    def __post_init__(self):
+        if self.charge_count == -1:
+            # Set starting charges to max charges, unless specified otherwise
+            self.charge_count = self.max_charges
+        if self.charge_time == 0:
+            # If it wasn't set, set the charge time to the recast time
+            self.charge_time = self.recast
+
+        # Default oGCDs to be unaffected by haste
+        if self.type == 'ogcd':
+            self.spd_adjusted = False
+
     def update_time(self, time_change):
-        self.cooldown = max(self.cooldown - time_change, 0)
+        if time_change == 0:
+            return
+
+        self.cooldown = max(round(self.cooldown - time_change, 3), 0)
+
+        self.charge_count += time_change // self.charge_time
+        extra_time = time_change % self.charge_time
+        if (self.charge_cd - extra_time) <= 0:
+            self.charge_count += 1
+            self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
+        else:
+            self.charge_cd = round(self.charge_cd - extra_time, 3)
+        if self.charge_count >= self.max_charges:
+            self.charge_count = self.max_charges
+            self.charge_cd = 0
 
 
 @dataclass
@@ -295,7 +337,7 @@ class BuffDC:
             if max(self.timer - time_change, 0) == 0:
                 # indicate to remove the buff effect
                 remove = True
-            self.timer = max(self.timer - time_change, 0)
+            self.timer = max(round(self.timer - time_change, 3), 0)
 
         return remove
 
@@ -317,7 +359,7 @@ class DotDC:
 
     def update_time(self, time_change):
         if self.timer > 0:
-            self.timer = max(self.timer - time_change, 0)
+            self.timer = max(round(self.timer - time_change, 3), 0)
 
 
 # get crit rate from the crit stat

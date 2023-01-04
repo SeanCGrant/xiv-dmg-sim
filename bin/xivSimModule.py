@@ -89,11 +89,11 @@ class XIVSimThread(QThread):
             elif job == 'DRG':
                 actor = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
             elif job == 'DNC':
-                actor = dnc.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i, partner=1)
+                actor = dnc.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i, **player['specifics'])
             elif job == 'PLD':
                 actor = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
             elif job == 'SAM':
-                actor = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i, **player['specifics'])
             elif job == 'WHM':
                 actor = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
             else:
