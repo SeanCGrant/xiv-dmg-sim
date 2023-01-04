@@ -191,9 +191,11 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
                             # check that the buff is still active, and roll the dice on rng
                             if (tracked_buff.timer > 0) & (tracked_buff.gift['rng'] > np.random.rand()):
-                                # give the resource
-                                actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']] +=\
-                                    tracked_buff.gift['value']
+                                # give the resource, without going over the max
+                                actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount =\
+                                    min(actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount
+                                        + tracked_buff.gift['value'],
+                                        actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].max)
 
                 # put buffs in the queue
                 team_buffs = event_buffs.get('team', [])

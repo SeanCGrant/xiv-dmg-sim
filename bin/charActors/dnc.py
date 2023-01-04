@@ -1,4 +1,4 @@
-from .baseActor import BaseActor, ActionDC, BuffDC, DotDC
+from .baseActor import BaseActor, ActionDC, ResourceDC, BuffDC, DotDC
 import pandas as pd
 import numpy as np
 
@@ -16,7 +16,7 @@ class Actor(BaseActor):
         self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
 
         # dnc specific resources
-        self.resources = {'esprit': 0, 'feathers': 0}
+        self.resources = {'esprit': ResourceDC(100), 'feathers': ResourceDC(4)}
 
         # dnc personal buffs
         buffs = {'F': BuffDC('logistic', 30.0), 'RC': BuffDC('logistic', 30.0),
@@ -114,7 +114,7 @@ class Actor(BaseActor):
                 if (self.buffs['RC'].timer < self.gcd_time) & (self.buffs['RC'].timer > 0):
                     # don't let RC drop
                     return self.initiate_action('ReverseCascade')
-                if self.resources['esprit'] >= 50:
+                if self.resources['esprit'].amount >= 50:
                     # use Saber Dance liberally
                     return self.initiate_action('SaberDance')
                 else:
@@ -154,7 +154,7 @@ class Actor(BaseActor):
                 if self.allowed_action(action):
                     return self.initiate_action(action)
                 # avoid overcapping esprit
-                if self.resources['esprit'] > 75:
+                if self.resources['esprit'].amount > 75:
                     # use SaberDance
                     action = 'SaberDance'
                     if self.allowed_action(action):
@@ -204,7 +204,7 @@ class Actor(BaseActor):
                     return self.initiate_action(action)
 
                 # use Fan4 when not capped on Fans, to avoid potential capping
-                if self.resources['feathers'] < 4:
+                if self.resources['feathers'].amount < 4:
                     action = 'FanDance4'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
@@ -230,7 +230,7 @@ class Actor(BaseActor):
                 if self.allowed_action(action):
                     return self.initiate_action(action)
 
-                if self.resources['feathers'] >= 4:
+                if self.resources['feathers'].amount >= 4:
                     # don't risk overwriting fan dance 3
                     action = 'FanDance3'
                     if self.allowed_action(action):

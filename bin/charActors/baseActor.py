@@ -101,7 +101,7 @@ class BaseActor:
             if isinstance(val, tuple):
                 # No rng consumed resources exist, so if it has rng, it is a gained resource
                 continue
-            if (val < 0) & (self.resources[resource] < val * -1):
+            if (val < 0) & (self.resources[resource].amount < val * -1):
                 return False
         return True
 
@@ -233,7 +233,14 @@ class BaseActor:
             if np.random.rand() < val[1]:
                 self.add_resource(name, val[0])
         else:
-            self.resources[name] += val
+            resource = self.resources[name]
+
+            # If removing resource from a max-capped timed resource, start its cooldown
+            if (resource.timed) & (resource.amount == resource.max) & (val < 0):
+                resource.charge_cd = resource.charge_time
+
+            # Add (or subtract) the resource, and don't let it go over the max allowed value
+            self.resources[name].amount = min(self.resources[name].amount + val, self.resources[name].max)
 
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
@@ -262,7 +269,8 @@ class BaseActor:
             tracker.update_time(time_change)
 
         # Update resource timers
-
+        for resource, tracker in self.resources.items():
+            tracker.update_time(time_change)
 
         # update last time check to now
         self.last_time_check = current_time
@@ -304,22 +312,79 @@ class ActionDC:
             self.spd_adjusted = False
 
     def update_time(self, time_change):
+        # Do nothing if the time hasn't actually changed
         if time_change == 0:
             return
 
         self.cooldown = max(round(self.cooldown - time_change, 3), 0)
 
+        # Add a charge for each full pass over the charge time
         self.charge_count += time_change // self.charge_time
+        # Now adjust for the extra time
         extra_time = time_change % self.charge_time
+        # Check if this extra time also passed the current cooldown
         if (self.charge_cd - extra_time) <= 0:
+            # Add a charge
             self.charge_count += 1
+            # Set the new cooldown
             self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
         else:
+            # Set the new cooldown
             self.charge_cd = round(self.charge_cd - extra_time, 3)
+        # Check if the charges have hit their max
         if self.charge_count >= self.max_charges:
+            # Reset to max
             self.charge_count = self.max_charges
+            # And 'stop' the cooldown count
             self.charge_cd = 0
 
+
+@dataclass
+class ResourceDC:
+    max: int
+    amount: int = 0
+    timed: bool = False
+    max_charges: int = 1
+    charge_count: int = -1
+    charge_time: float = 0.0
+    charge_cd: float = 0.0  # The recharge cooldown
+
+    def __post_init__(self):
+        # check if this is a timed resource
+        if self.timed:
+            if self.charge_count == -1:
+                # Set starting charges to max charges, unless specified otherwise
+                self.charge_count = self.max_charges
+            if self.charge_count == 0:
+                # If the count starts at zero, then the cd starts automatically too
+                self.charge_cd = self.charge_time
+
+    def update_time(self, time_change):
+        # Do nothing if the time hasn't actually changed
+        if time_change == 0:
+            return
+
+        # Only proceed for a timed resource
+        if self.timed:
+            # Add a charge for each full pass over the charge time
+            self.charge_count += time_change // self.charge_time
+            # Now adjust for the extra time
+            extra_time = time_change % self.charge_time
+            # Check if this extra time also passed the current cooldown
+            if (self.charge_cd - extra_time) <= 0:
+                # Add a charge
+                self.charge_count += 1
+                # Set the new cooldown
+                self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
+            else:
+                # Set the new cooldown
+                self.charge_cd = round(self.charge_cd - extra_time, 3)
+            # Check if the charges have hit their max
+            if self.charge_count >= self.max_charges:
+                # Reset to max
+                self.charge_count = self.max_charges
+                # And 'stop' the cooldown count
+                self.charge_cd = 0
 
 @dataclass
 class BuffDC:
