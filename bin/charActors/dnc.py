@@ -1,4 +1,4 @@
-from .baseActor import BaseActor, ActionDC, ResourceDC, BuffDC, DotDC
+from .baseActor import BaseActor, ActionDC, ResourceDC, BuffDC, BuffSelector, DotDC
 import pandas as pd
 import numpy as np
 

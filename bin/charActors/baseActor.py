@@ -156,6 +156,12 @@ class BaseActor:
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
 
+        # Determine buff to send
+        buff_effect = action.buff_effect
+        # If this is a buff selector, then select a buff (or set of buffs)
+        if isinstance(action.buff_effect, BuffSelector):
+            buff_effect = buff_effect.select()
+
         # remove any buffs
         for buff in action.buff_removal:
             self.remove_buff(buff)
@@ -169,7 +175,7 @@ class BaseActor:
         for resource, val in action.resource.items():
             self.add_resource(resource, val)
 
-        return potency, (m, crit, dhit), action.buff_effect, action.type
+        return potency, (m, crit, dhit), buff_effect, action.type
 
     def apply_buff(self, buff, *, giver_id=10):
         if isinstance(buff, tuple):
@@ -235,8 +241,12 @@ class BaseActor:
         else:
             resource = self.resources[name]
 
+            # If the resource is supposed to be consumed in full, set value to negative of current quantity
+            if val == 'consume':
+                val = - resource.amount
+
             # If removing resource from a max-capped timed resource, start its cooldown
-            if (resource.timed) & (resource.amount == resource.max) & (val < 0):
+            if (isinstance(resource, TimedResourceDC)) & (resource.amount == resource.max) & (val < 0):
                 resource.charge_cd = resource.charge_time
 
             # Add (or subtract) the resource, and don't let it go over the max allowed value
@@ -270,10 +280,121 @@ class BaseActor:
 
         # Update resource timers
         for resource, tracker in self.resources.items():
-            tracker.update_time(time_change)
+            # only for timed resources
+            if isinstance(tracker, TimedResourceDC):
+                tracker.update_time(time_change)
 
         # update last time check to now
         self.last_time_check = current_time
+
+
+@dataclass
+class ResourceDC:
+    max: int
+    amount: int = 0
+
+
+@ dataclass
+class TimedResourceDC(ResourceDC):
+    max_charges: int = 1
+    charge_count: int = -1
+    charge_time: float = 0.0
+    charge_cd: float = 0.0  # The recharge cooldown
+
+    def __post_init__(self):
+        if self.charge_count == -1:
+            # Set starting charges to max charges, unless specified otherwise
+            self.charge_count = self.max_charges
+        if self.charge_count == 0:
+            # If the count starts at zero, then the cd starts automatically too
+            self.charge_cd = self.charge_time
+
+    def update_time(self, time_change):
+        # Do nothing if the time hasn't actually changed
+        if time_change == 0:
+            return
+
+        # Add a charge for each full pass over the charge time
+        self.charge_count += time_change // self.charge_time
+        # Now adjust for the extra time
+        extra_time = time_change % self.charge_time
+        # Check if this extra time also passed the current cooldown
+        if (self.charge_cd - extra_time) <= 0:
+            # Add a charge
+            self.charge_count += 1
+            # Set the new cooldown
+            self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
+        else:
+            # Set the new cooldown
+            self.charge_cd = round(self.charge_cd - extra_time, 3)
+        # Check if the charges have hit their max
+        if self.charge_count >= self.max_charges:
+            # Reset to max
+            self.charge_count = self.max_charges
+            # And 'stop' the cooldown count
+            self.charge_cd = 0
+
+
+@dataclass
+class BuffDC:
+    # a class to hold the information for each buff
+    type: str  # 'dmg', 'crit', 'dhit', 'spd'
+    duration: float  # length of the buff
+    value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
+    delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
+    timer: float = 0.0  # the remaining time on the buff
+
+    def update_time(self, time_change):
+        remove = False
+
+        if self.timer > 0:
+            if max(self.timer - time_change, 0) == 0:
+                # indicate to remove the buff effect
+                remove = True
+            self.timer = max(round(self.timer - time_change, 3), 0)
+
+        return remove
+
+
+@dataclass
+class TargetedBuff(BuffDC):
+    # only for  buffs that need to track back to their giver, generally for resource generation
+    buff_giver: int = field(kw_only=True, default=10)
+    gift: dict = field(default_factory=dict)  # {'name': , 'value': , 'rng': }
+
+
+@dataclass
+class BuffSelector:
+    # a class used when the buff that gets used depends on the state of the actor
+    buff_selection: list  # Potential buffs to send
+    sticker_selection: list  # The 'stickers' that affect which buff to choose
+    actor: BaseActor
+
+    def select(self):
+        # count how many of the stickers are present
+        count = 0
+        for sticker in self.sticker_selection:
+            if self.actor.resources[sticker].amount == 1:
+                count += 1
+
+        # Send no buffs back if no stickers
+        if count == 0:
+            return {}
+        # Otherwise select the appropriate buff
+        return self.buff_selection[count - 1]
+
+
+@dataclass
+class DotDC:
+    # a class to hold the information for each DoT
+    potency: int
+    duration: float
+    buff_snap: tuple
+    timer: float = 0.0
+
+    def update_time(self, time_change):
+        if self.timer > 0:
+            self.timer = max(round(self.timer - time_change, 3), 0)
 
 
 @dataclass
@@ -293,7 +414,7 @@ class ActionDC:
     autocrit: bool = False
     autodhit: bool = False
     spd_adjusted: bool = True
-    buff_effect: dict = field(default_factory=dict)  # (['self', 'team', 'target']: ['*buff names*'])
+    buff_effect: dict | BuffSelector = field(default_factory=dict)  # (['self', 'team', 'target']: ['*buff names*'])
     buff_removal: list = field(default_factory=list)  # ['*buff names*']
     dot_effect: str = 'none'  # 'none', '*dot name*'
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
@@ -337,94 +458,6 @@ class ActionDC:
             self.charge_count = self.max_charges
             # And 'stop' the cooldown count
             self.charge_cd = 0
-
-
-@dataclass
-class ResourceDC:
-    max: int
-    amount: int = 0
-    timed: bool = False
-    max_charges: int = 1
-    charge_count: int = -1
-    charge_time: float = 0.0
-    charge_cd: float = 0.0  # The recharge cooldown
-
-    def __post_init__(self):
-        # check if this is a timed resource
-        if self.timed:
-            if self.charge_count == -1:
-                # Set starting charges to max charges, unless specified otherwise
-                self.charge_count = self.max_charges
-            if self.charge_count == 0:
-                # If the count starts at zero, then the cd starts automatically too
-                self.charge_cd = self.charge_time
-
-    def update_time(self, time_change):
-        # Do nothing if the time hasn't actually changed
-        if time_change == 0:
-            return
-
-        # Only proceed for a timed resource
-        if self.timed:
-            # Add a charge for each full pass over the charge time
-            self.charge_count += time_change // self.charge_time
-            # Now adjust for the extra time
-            extra_time = time_change % self.charge_time
-            # Check if this extra time also passed the current cooldown
-            if (self.charge_cd - extra_time) <= 0:
-                # Add a charge
-                self.charge_count += 1
-                # Set the new cooldown
-                self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
-            else:
-                # Set the new cooldown
-                self.charge_cd = round(self.charge_cd - extra_time, 3)
-            # Check if the charges have hit their max
-            if self.charge_count >= self.max_charges:
-                # Reset to max
-                self.charge_count = self.max_charges
-                # And 'stop' the cooldown count
-                self.charge_cd = 0
-
-@dataclass
-class BuffDC:
-    # a class to hold the information for each buff
-    type: str  # 'dmg', 'crit', 'dhit', 'spd'
-    duration: float  # length of the buff
-    value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
-    delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
-    timer: float = 0.0  # the remaining time on the buff
-
-    def update_time(self, time_change):
-        remove = False
-
-        if self.timer > 0:
-            if max(self.timer - time_change, 0) == 0:
-                # indicate to remove the buff effect
-                remove = True
-            self.timer = max(round(self.timer - time_change, 3), 0)
-
-        return remove
-
-
-@dataclass
-class TargetedBuff(BuffDC):
-    # only for  buffs that need to track back to their giver, generally for resource generation
-    buff_giver: int = field(kw_only=True, default=10)
-    gift: dict = field(default_factory=dict)  # {'name': , 'value': , 'rng': }
-
-
-@dataclass
-class DotDC:
-    # a class to hold the information for each DoT
-    potency: int
-    duration: float
-    buff_snap: tuple
-    timer: float = 0.0
-
-    def update_time(self, time_change):
-        if self.timer > 0:
-            self.timer = max(round(self.timer - time_change, 3), 0)
 
 
 # get crit rate from the crit stat
