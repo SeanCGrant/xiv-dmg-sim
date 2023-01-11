@@ -43,7 +43,7 @@ if __name__ == '__main__':
         print('############### Battle Iteration {} Done ###############'.format(i+1))
 
     print('First 20 rows of last battle sim:')
-    print(sim_log.loc[sim_log['Player']==0][['Time', 'Player', 'Type', 'Multiplier', 'Crit Rate', "Full Damage"]][:60])
+    print(sim_log.loc[sim_log['Player']==0][['Time', 'Player', 'Type', 'Potency', 'Multiplier', 'Crit Rate', "Full Damage"]][:60])
 
     print(f"mean damage: {np.mean(dmg_list) / (fight_sim_duration - 3.5)}")  # subtracting 3.5 for the "prepull dance prep"
 

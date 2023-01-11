@@ -1,4 +1,4 @@
-from .baseActor import BaseActor, ActionDC, ResourceDC, BuffDC, BuffSelector, DotDC
+from .baseActor import BaseActor, ActionDC, ResourceDC, BuffDC, BuffSelector, DotDC, Chance, Consume
 import pandas as pd
 import numpy as np
 
@@ -31,24 +31,40 @@ class Actor(BaseActor):
 
         # dnc actions
         actions = {'Cascade': ActionDC('gcd', 220, self.gcd_time, self.gcd_time, 0.0,
-                                       buff_effect={'self': ['F', ('RC', 0.5)]},
+                                       buff_effect={'self': ['F', Chance('RC', 0.5)]},
                                        resource={'esprit': 5}),
+                   ##### Two Options for Combo Actions: #####
+                   ## First: Two separate actions that are called separately.
+                   # This has advantages in simplifying rotation logic, particularly when an uncombo'd action is almost
+                   # never used.
+                   # Combo'd version
                    'Fountain': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
-                                        buff_effect={'self': [('FF', 0.5)]},
+                                        buff_effect={'self': [Chance('FF', 0.5)]},
                                         buff_removal=['F'],
                                         resource={'esprit': 5}),
+                   # Uncombo'd version - must be asked for explicitly
+                   'unFountain': ActionDC('gcd', 100, self.gcd_time, self.gcd_time,
+                                          resource={'esprit': 5}),
+                   ## Second: Create one Action that determines the potency based on whether the combo buff is present.
+                   # This gets contained in a single action that can be called, and automatically handles the potency.
+                   # But requires that all instances of rotation logic check for the combo buff as necessary.
+                   # Example here (unused):
+                   # 'Fountain': ActionDC('gcd', self.combo_potency([100, 280], 'F'), self.gcd_time, self.gcd_time,
+                   #                      buff_effect={'self': [Chance('FF', 0.5)]},
+                   #                      #buff_removal=['F'],
+                   #                      resource={'esprit': 5}),
                    'ReverseCascade': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
                                               buff_removal=['RC'],
-                                              resource={'esprit': 10, 'feathers': (1, 0.5)}),
+                                              resource={'esprit': 10, 'feathers': Chance(1, 0.5)}),
                    'FlourishingReverseCascade': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
                                                          buff_removal=['FlourishingRC'],
-                                                         resource={'esprit': 10, 'feathers': (1, 0.5)}),
+                                                         resource={'esprit': 10, 'feathers': Chance(1, 0.5)}),
                    'Fountainfall': ActionDC('gcd', 340, self.gcd_time, self.gcd_time,
                                             buff_removal=['FF'],
-                                            resource={'esprit': 10, 'feathers': (1, 0.5)}),
+                                            resource={'esprit': 10, 'feathers': Chance(1, 0.5)}),
                    'FlourishingFountainfall': ActionDC('gcd', 340, self.gcd_time, self.gcd_time,
                                                        buff_removal=['FlourishingFF'],
-                                                       resource={'esprit': 10, 'feathers': (1, 0.5)}),
+                                                       resource={'esprit': 10, 'feathers': Chance(1, 0.5)}),
                    'SaberDance': ActionDC('gcd', 480, self.gcd_time, self.gcd_time,
                                           resource={'esprit': -50}),
                    'StandardStep': ActionDC('gcd', 720, 30.0, 5.0,
@@ -70,7 +86,7 @@ class Actor(BaseActor):
                                         buff_removal=['Starfall']),
                    'FanDance1': ActionDC('ogcd', 150, 1.0,
                                          resource={'feathers': -1},
-                                         buff_effect={'self': [('Threefold', 0.5)]}),
+                                         buff_effect={'self': [Chance('Threefold', 0.5)]}),
                    'FanDance3': ActionDC('ogcd', 200, 1.0,
                                          buff_removal=['Threefold']),
                    'FanDance4': ActionDC('ogcd', 300, 1.0,

@@ -4,6 +4,7 @@ import heapq
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from charActors.baseActor import Chance
 
 
 # convert potency to damage (standard hits)
@@ -100,10 +101,10 @@ def sim_battle(fight_length, actor_list, verbose=False):
     def heap_add(heap, time, actor, target, buff):
         nonlocal buff_counter
 
-        if isinstance(buff, tuple):
+        if isinstance(buff, Chance):
             # buff/event has a probability to go off (some procs, for example)
-            if np.random.rand() < buff[1]:
-                heap_add(heap, time, actor, target, buff[0])
+            if np.random.rand() < buff.probability:
+                heap_add(heap, time, actor, target, buff.val)
         else:
             heapq.heappush(heap, (round(time + actor.buffs[buff].delay, 3), buff_counter, actor.player_id, target, buff))
 

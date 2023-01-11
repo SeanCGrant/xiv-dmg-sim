@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from dataclasses import dataclass, field
+from typing import Callable
 
 
 # Create a base class for the character actors
@@ -98,9 +99,13 @@ class BaseActor:
                 return False
         # check for necessary resources
         for resource, val in action.resource.items():
-            if isinstance(val, tuple):
+            if isinstance(val, Chance):
                 # No rng consumed resources exist, so if it has rng, it is a gained resource
                 continue
+            # If it is a full-resource consuming Action, check based on the minimum need
+            if isinstance(val, Consume):
+                val = - val.min
+            # If resources are being used, make sure there is enough
             if (val < 0) & (self.resources[resource].amount < val * -1):
                 return False
         return True
@@ -146,6 +151,9 @@ class BaseActor:
 
         # values to be returned
         potency = action.potency
+        # Calculate potency if needed
+        if callable(potency):
+            potency = potency()
         m, crit, dhit = self.buff_state()
         if action.autocrit:
             crit = 1.0
@@ -178,10 +186,10 @@ class BaseActor:
         return potency, (m, crit, dhit), buff_effect, action.type
 
     def apply_buff(self, buff, *, giver_id=10):
-        if isinstance(buff, tuple):
+        if isinstance(buff, Chance):
             # buff has a probability to go off (some procs, for example)
-            if np.random.rand() < buff[1]:
-                self.apply_buff(buff[0])
+            if np.random.rand() < buff.probability:
+                self.apply_buff(buff.val)
         else:
             if self.buffs[buff].timer == 0:
                 # only apply the effect of the buff if actually new (not refreshing)
@@ -235,14 +243,17 @@ class BaseActor:
         self.dots[dot_name].buff_snap = self.buff_state()
 
     def add_resource(self, name, val):
-        if isinstance(val, tuple):
-            if np.random.rand() < val[1]:
-                self.add_resource(name, val[0])
+        # Check if this is an rng resource
+        if isinstance(val, Chance):
+            # Roll the dice
+            if np.random.rand() < val.probability:
+                # Give the resource on success
+                self.add_resource(name, val.val)
         else:
             resource = self.resources[name]
 
             # If the resource is supposed to be consumed in full, set value to negative of current quantity
-            if val == 'consume':
+            if isinstance(val, Consume):
                 val = - resource.amount
 
             # If removing resource from a max-capped timed resource, start its cooldown
@@ -251,6 +262,23 @@ class BaseActor:
 
             # Add (or subtract) the resource, and don't let it go over the max allowed value
             self.resources[name].amount = min(self.resources[name].amount + val, self.resources[name].max)
+
+    def combo_potency(self, potency_list, combo_name):
+        # potency_list is a list with [uncombo'd potency, combo'd potency]
+
+        # Generate a function that checks if the combo is active
+        def pot_val():
+            if self.buffs[combo_name].timer > 0:
+                # Remove the combo buff when used
+                self.remove_buff(combo_name)
+                # And return the combo'd potency
+                return potency_list[1]
+            else:
+                # Return the uncombo'd potency
+                return potency_list[0]
+
+        # Return this function
+        return pot_val
 
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
@@ -286,6 +314,12 @@ class BaseActor:
 
         # update last time check to now
         self.last_time_check = current_time
+
+
+@dataclass
+class Chance:
+    val: int | str
+    probability: float
 
 
 @dataclass
@@ -333,6 +367,12 @@ class TimedResourceDC(ResourceDC):
             self.charge_count = self.max_charges
             # And 'stop' the cooldown count
             self.charge_cd = 0
+
+
+@dataclass
+class Consume:
+    # Used for Actions that consume all of a given resource
+    min: int = 0  # The min value needed for the Action to be allowed
 
 
 @dataclass
@@ -401,7 +441,7 @@ class DotDC:
 class ActionDC:
     # a class to hold the information for each available action
     type: str  # 'gcd', 'ogcd'
-    potency: int
+    potency: int | Callable
     recast: float = 2.5
     gcd_lock: float = 0
     cooldown: float = 0  # The recast cooldown
