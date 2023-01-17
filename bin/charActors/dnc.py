@@ -203,7 +203,7 @@ class Actor(BaseActor):
                         return self.initiate_action(action)
         else:
             # consider using oGCDs
-            if self.next_event + self.anim_lock > self.next_gcd:
+            if round(self.next_event + self.anim_lock, 3) > self.next_gcd:
                 # don't clip gcd
                 return self.go_to_gcd()
 

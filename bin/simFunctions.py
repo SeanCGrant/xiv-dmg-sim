@@ -233,7 +233,7 @@ def sim_battle(fight_length, actor_list, verbose=False):
             action_name, delay = actor_list[player].choose_action()
             if action_name is not None:
                 if player in [0]:
-                    pass #print(f"{action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
+                    print(f"{action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
                 # put in action queue
                 heapq.heappush(action_queue, (round(time+delay, 3), player, action_name))
             # update tracker for next event_pot

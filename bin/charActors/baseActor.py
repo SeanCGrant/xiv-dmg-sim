@@ -79,8 +79,13 @@ class BaseActor:
     def pass_ogcd(self):
         # find next ogcd window and then jump to it
         # TO-DO: put in options for late-weave ogcds
-        self.next_ogcd += self.anim_lock
-        self.next_event = min(self.next_gcd, self.next_ogcd)
+        # Ignore the late weave, if it is before the current ogcd slot, and advance to the next GCD
+        if self.next_ogcd >= round(self.next_gcd - self.anim_lock, 3):
+            self.next_event = self.next_gcd
+            return None, 0.0
+        # Otherwise consider the latest late weave
+        self.next_ogcd = round(min(self.next_ogcd + self.anim_lock, self.next_gcd - self.anim_lock), 3)
+        self.next_event = round(min(self.next_gcd, self.next_ogcd), 3)
 
         return None, 0.0
 
@@ -91,7 +96,7 @@ class BaseActor:
         if action.charge_count < 1:
             return False
         # check the cooldown (REMOVE?)
-        if action.cooldown > 0.00005:  # wiggle room for float precision (TO-DO: floor values appropriately)
+        if action.cooldown > 0.0:  # wiggle room for float precision (TO-DO: floor values appropriately)
             return False
         # check for proc (logistical buffs, usually)
         for proc in action.buff_removal:
@@ -130,7 +135,7 @@ class BaseActor:
 
         if action.type == 'gcd':
             # roll GCD
-            self.next_gcd += round(action.gcd_lock * spd_mod, 3)
+            self.next_gcd = round(self.next_gcd + action.gcd_lock * spd_mod, 3)
             # and animation-lock to next oGCD slot
             self.next_ogcd = round(self.next_event + (action.cast_time * spd_mod) + action.anim_lock, 3)
 
@@ -139,10 +144,10 @@ class BaseActor:
             # TO-DO: logic for late-weave slots
             self.next_ogcd = round(self.next_ogcd + action.anim_lock, 3)
             # Force animation lock on next GCD if applicable
-            self.next_gcd = max(self.next_gcd, self.next_ogcd)
+            self.next_gcd = round(max(self.next_gcd, self.next_ogcd), 3)
 
         # find next open event slot
-        self.next_event = min(self.next_gcd, self.next_ogcd)
+        self.next_event = round(min(self.next_gcd, self.next_ogcd), 3)
 
         return action_name, action.cast_time * spd_mod
 
@@ -267,7 +272,7 @@ class BaseActor:
         # potency_list is a list with [uncombo'd potency, combo'd potency]
 
         # Generate a function that checks if the combo is active
-        def pot_val():
+        def pot_function():
             if self.buffs[combo_name].timer > 0:
                 # Remove the combo buff when used
                 self.remove_buff(combo_name)
@@ -278,7 +283,7 @@ class BaseActor:
                 return potency_list[0]
 
         # Return this function
-        return pot_val
+        return pot_function
 
     def update_time(self, current_time):
         # adjust player timers based on how long it has been since the last update
