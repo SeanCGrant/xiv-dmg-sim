@@ -134,25 +134,33 @@ class BaseActor:
             action.charge_cd = action.charge_time * spd_mod
         # Use a charge
         action.charge_count -= 1
+        # Don't let charge count go below zero
+        if action.charge_count < 0:
+            # But send a warning if it does
+            print(f"Warning: Negative charge achieved. ({action_name})")
+            # and reset to zero
+            action.charge_count = 0
+            # This allows predefined rotations to break some rules
 
         # put the action on cooldown
         action.cooldown = action.recast * spd_mod
 
         if action.type == 'gcd':
-            # roll GCD
-            self.next_gcd = round(self.next_gcd + action.gcd_lock * spd_mod, 3)
-            # and animation-lock to next oGCD slot
-            self.next_ogcd = round(self.next_event + (action.cast_time * spd_mod) + action.anim_lock, 3)
+            # roll GCD (and check for a predefined later "next_gcd")
+            self.next_gcd = round(max(self.last_time_check + action.gcd_lock * spd_mod, self.next_gcd), 3)
+            # and animation-lock to next oGCD slot (and check for predefined later "next_ogcd")
+            self.next_ogcd = round(max(self.last_time_check + (action.cast_time * spd_mod) + action.anim_lock,
+                                       self.next_ogcd), 3)
 
         if action.type == 'ogcd':
             # just move up one animation-lock slot for now
             # TO-DO: logic for late-weave slots
-            self.next_ogcd = round(self.next_ogcd + action.anim_lock, 3)
+            self.next_ogcd = round(max(self.last_time_check + action.anim_lock, self.next_ogcd), 3)
             # Force animation lock on next GCD if applicable
             self.next_gcd = round(max(self.next_gcd, self.next_ogcd), 3)
 
-        # find next open event slot
-        self.next_event = round(min(self.next_gcd, self.next_ogcd), 3)
+        # find next open event slot (and check for a predefined later "next_event")
+        self.next_event = round(max(min(self.next_gcd, self.next_ogcd), self.next_event), 3)
 
         return action_name, action.cast_time * spd_mod
 
@@ -270,8 +278,8 @@ class BaseActor:
             if (isinstance(resource, TimedResourceDC)) & (resource.amount == resource.max) & (val < 0):
                 resource.charge_cd = resource.charge_time
 
-            # Add (or subtract) the resource, and don't let it go over the max allowed value
-            self.resources[name].amount = min(self.resources[name].amount + val, self.resources[name].max)
+            # Add (or subtract) the resource, and don't let it go over the max allowed value or under 0
+            self.resources[name].amount = max(0, min(self.resources[name].amount + val, self.resources[name].max))
 
     def combo_potency(self, potency_list, combo_name):
         # potency_list is a list with [uncombo'd potency, combo'd potency]

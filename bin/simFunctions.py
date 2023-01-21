@@ -97,6 +97,9 @@ def sim_battle(fight_length, actor_list, verbose=False):
         # check for buff queue event
         if buff_queue:
             time = round(min(time, buff_queue[0][0]), 3)
+        # check for prepared queue event
+        if prepared_queue:
+            time = round(min(time, prepared_queue[0][0]), 3)
 
     # add a buff to the buff queue
     def heap_add(heap, time, actor, target, buff):
@@ -132,6 +135,9 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
     # create a delay queue for delayed actions
     action_queue = []
+
+    # create a prepares queue for predefined actions to be used
+    prepared_queue = []
     # Fill with predefined actions, if needed
     for actor in actor_list:
         if actor.actions_defined:
@@ -144,28 +150,25 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
                     # First non-defined gcd time is provided in the file
                     if event['Action'] == 'next gcd':
-                        actor.next_gcd = event_time
-                        actor.next_ogcd = event_time
-                        actor.next_event = event_time
-                        print(actor.next_gcd)
+                        continue
 
                     else:
                         # Get the action
-                        action = actor.actions[event['Action']]
+                        action_name = event['Action']
                         player = actor.player_id
-                        # initiate the action
-                        action_name, delay = actor_list[player].initiate_action(event['Action'])
                         if action_name is not None:
                             if player in [0]:
-                                print(f"Prepares: {action_name} \t\t\t time: {event_time} \t\t\t resources: {actor_list[player].resources}")
+                                print(f"Prepares: {action_name} \t\t\t time: {event_time}")
                             # put in action queue
-                            heapq.heappush(action_queue, (round(event_time + delay, 3), player, action_name))
-                    # update tracker for next event
-                    event_tracker[0, player] = actor_list[player].next_event
+                            heapq.heappush(prepared_queue, (round(event_time, 3), player, action_name))
 
-                    # put the action in the queue
-                    # heapq.heappush(action_queue,
-                    #                (round(event_time+action.cast_time, 3), actor.player_id, event['Action']))
+                # update player and tracker for next event
+                actor.next_gcd = event_time
+                actor.next_ogcd = event_time
+                actor.next_event = event_time
+                print(actor.next_gcd)
+                event_tracker[0, player] = actor_list[player].next_event
+
                 print('done')
 
     ### Play through time ###
@@ -175,6 +178,23 @@ def sim_battle(fight_length, actor_list, verbose=False):
         #     print(f"gcd: {actor_list[0].next_gcd}")
         #     print(f"event: {actor_list[0].next_event} \t time:{time}")
         #     print(event_tracker)
+
+        # Initiate any actions in the prepared queue
+        if bool(prepared_queue):
+            if prepared_queue[0][0] < time:
+                print("Error: skipped a queue item (prepared)")
+            elif prepared_queue[0][0] == time:
+                # Get the first action
+                _, player, action = heapq.heappop(prepared_queue)
+                # Initiate the action
+                action_name, delay = actor_list[player].initiate_action(action)
+                if action_name is not None:
+                    if player in [0]:
+                        print(f"Input: {action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
+                    # put in action queue
+                    heapq.heappush(action_queue, (round(time + delay, 3), player, action_name))
+                # update tracker for next event_pot
+                event_tracker[0, player] = actor_list[player].next_event
 
         # Perform any effects that are ready from the buff queue
         if bool(buff_queue):
