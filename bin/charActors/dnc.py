@@ -5,12 +5,15 @@ import numpy as np
 
 # dancer-specific Actor
 class Actor(BaseActor):
-    def __init__(self, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, *, player_id, partner):
+    def __init__(self, wd, ap, det, spd, crit, dhit, wpn_delay, *, player_id, partner, **kwargs):
+        print(kwargs)
+        self.kwargs = kwargs
+
         # Dancer-specific values
         jobMod = 115
         trait = 120
 
-        super().__init__(jobMod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, player_id=player_id)
+        super().__init__(jobMod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, player_id=player_id, **kwargs)
 
         # override auto potency
         self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
@@ -159,6 +162,8 @@ class Actor(BaseActor):
                     action = 'Cascade'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
+                    else:
+                        print(f"No valid gcd. {self.last_time_check}")
             # outside Tech window
             else:
                 # use Tillana if leftover
@@ -271,8 +276,8 @@ class Actor(BaseActor):
 
     def reset(self):
         # reset the actor (clears buff and proc timers, etc.)
-        self.__init__(self.wd, self.ap, self.det, self.spd, self.crit, self.dhit, self.wpn_delay, self.ten,
-                      player_id=self.player_id, partner=self.buff_target)
+        self.__init__(self.wd, self.ap, self.det, self.spd, self.crit, self.dhit, self.wpn_delay,
+                      player_id=self.player_id, partner=self.buff_target, **self.kwargs)
 
 
 

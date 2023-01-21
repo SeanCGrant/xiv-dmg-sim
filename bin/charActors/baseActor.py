@@ -7,7 +7,9 @@ from typing import Callable
 # Create a base class for the character actors
 class BaseActor:
 
-    def __init__(self, job_mod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, anim_lock=0.65, *, player_id):
+    def __init__(self, job_mod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, ten=400, anim_lock=0.65, *, player_id,
+                 actions_defined=False, rotation_file=''):
+        print(actions_defined)
         self.player_id = player_id
         self.jobMod = job_mod
         self.trait = trait
@@ -51,6 +53,9 @@ class BaseActor:
         self.base_dhit = dhit_from_stat(dhit)
         self.crit_rate = self.base_crit  # actively modified to reflect current buffs and/or auto-crits
         self.dhit_rate = self.base_dhit  # actively modified to reflect current buffs and/or auto-dhits
+        self.actions_list = False  # True if a list of actions is provided by the user
+        self.actions_defined = actions_defined  # True if a time-specified list of actions is provided by the user
+        self.rotation_file = rotation_file  # The file location for a defined rotation
 
     def char_stats(self):
         # return a list of the character's stats
@@ -116,7 +121,7 @@ class BaseActor:
         return True
 
     def initiate_action(self, action_name):
-        # adjust the player's next_event time
+        # initiate the requested action
         action = self.actions[action_name]
 
         # apply any haste buffs, if the action is affected

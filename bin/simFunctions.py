@@ -1,5 +1,6 @@
 # Module for functions used in the simulations
 import copy
+import csv
 import heapq
 import pandas as pd
 import numpy as np
@@ -131,9 +132,49 @@ def sim_battle(fight_length, actor_list, verbose=False):
 
     # create a delay queue for delayed actions
     action_queue = []
+    # Fill with predefined actions, if needed
+    for actor in actor_list:
+        if actor.actions_defined:
+            print('here')
+            # read actions
+            with open(actor.rotation_file) as csvfile:
+                reader = csv.DictReader(csvfile)
+                for event in reader:
+                    event_time = round(float(event['Time']), 3)
+
+                    # First non-defined gcd time is provided in the file
+                    if event['Action'] == 'next gcd':
+                        actor.next_gcd = event_time
+                        actor.next_ogcd = event_time
+                        actor.next_event = event_time
+                        print(actor.next_gcd)
+
+                    else:
+                        # Get the action
+                        action = actor.actions[event['Action']]
+                        player = actor.player_id
+                        # initiate the action
+                        action_name, delay = actor_list[player].initiate_action(event['Action'])
+                        if action_name is not None:
+                            if player in [0]:
+                                print(f"Prepares: {action_name} \t\t\t time: {event_time} \t\t\t resources: {actor_list[player].resources}")
+                            # put in action queue
+                            heapq.heappush(action_queue, (round(event_time + delay, 3), player, action_name))
+                    # update tracker for next event
+                    event_tracker[0, player] = actor_list[player].next_event
+
+                    # put the action in the queue
+                    # heapq.heappush(action_queue,
+                    #                (round(event_time+action.cast_time, 3), actor.player_id, event['Action']))
+                print('done')
 
     ### Play through time ###
     while time <= fight_length:
+
+        # if (time >= 0.0) and (time <= 20.0):
+        #     print(f"gcd: {actor_list[0].next_gcd}")
+        #     print(f"event: {actor_list[0].next_event} \t time:{time}")
+        #     print(event_tracker)
 
         # Perform any effects that are ready from the buff queue
         if bool(buff_queue):
@@ -173,6 +214,8 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 event_pot, (event_M, event_crit, event_dhit), event_buffs, event_type =\
                     actor_list[player].perform_action(action_name)
                 log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
+                if player in [0]:
+                    print(f"Performs: {action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
 
                 # distribute any given resources
                 # check if player has any tracked buffs, and whether this action can give

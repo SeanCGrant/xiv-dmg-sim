@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QPushButton, QLabel, QLineEdit,
                              QVBoxLayout, QHBoxLayout, QStackedLayout, QGridLayout, QComboBox, QProgressBar,
-                             QRadioButton, QFrame)
+                             QRadioButton, QCheckBox, QFrame, QFileDialog)
 from PyQt5.Qt import QSize, Qt, QIntValidator, QDoubleValidator
 from PyQt5.QtGui import QPalette, QColor
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT
@@ -35,8 +35,11 @@ class MainWindow(QMainWindow):
             # That contains the generic stat page on top
             temp = StatPage('grey')
             page_layout.addWidget(temp)
-            # and any job-specific needs below.
+            # and any job-specific needs below that.
             temp = JobCustom('Job', self)
+            page_layout.addWidget(temp)
+            # and a rotation selection below that
+            temp = RotationSelection()
             page_layout.addWidget(temp)
             page.setLayout(page_layout)
 
@@ -160,8 +163,10 @@ class MainWindow(QMainWindow):
             player_stats = [player.layout().itemAt(0).widget().stats for player in self.stat_pages]
             player_jobs = [player.drop_box.currentText() for player in self.choices]
             job_specifics = [player.layout().itemAt(1).widget().return_data() for player in self.stat_pages]
+            rotation_specifics = [player.layout().itemAt(2).widget().return_data() for player in self.stat_pages]
+            specifics = [job | rotation for job, rotation in zip(job_specifics, rotation_specifics)]
             self.full_data['players'] = [{'job': job, 'stats': stats, 'specifics': specifics} for job, stats, specifics
-                                         in zip(player_jobs, player_stats, job_specifics)]
+                                         in zip(player_jobs, player_stats, specifics)]
             print('stats collected')
             print(self.full_data)
 
@@ -440,6 +445,70 @@ class JobCustom(QWidget):
         return {}
 
 
+class RotationSelection(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setAutoFillBackground(True)
+        # Set initial background color of this widget
+        self.change_color("Job")
+
+        layout = QVBoxLayout()
+
+        self.check_box = QCheckBox("Input your own opener/rotation?")
+        layout.addWidget(self.check_box)
+
+        self.file_display = QLabel("No File Selected")
+        layout.addWidget(self.file_display)
+
+        button = QPushButton("Select a File")
+        button.pressed.connect(self.select_file)
+        layout.addWidget(button)
+
+        self.setLayout(layout)
+
+    def change_color(self, job):
+        # Change the background color based on the selected job
+        color = 'grey'
+        match job:
+            case 'AST':
+                color = 'yellow'
+            case 'BLM':
+                color = 'purple'
+            case 'DRK':
+                color = 'magenta'
+            case 'DRG':
+                color = 'blue'
+            case 'DNC':
+                color = 'pink'
+            case 'PLD':
+                color = 'cyan'
+            case 'SAM':
+                color = 'orange'
+            case 'WHM':
+                color = 'white'
+
+        palette = self.palette()
+        palette.setColor(QPalette.Window, QColor(color))
+        self.setPalette(palette)
+
+    def select_file(self):
+        # Ask for a csv file
+        file_name, _ = QFileDialog.getOpenFileName(self, "Select a file", "data/rotations", "CSV files (*.csv)")
+        # Display the file location
+        if file_name:
+            self.file_display.setText(file_name)
+
+    def return_data(self):
+        data = {}
+        # return the file location if asked to use it, and flag the player as using it
+        if self.check_box.isChecked():
+            data['actions_defined'] = True
+            data['rotation_file'] = self.file_display.text()
+
+        return data
+
+
 class LabeledDrop(QWidget):
     # A Widget that contains a label and dropdown selector
     def __init__(self, n, window):
@@ -463,6 +532,7 @@ class LabeledDrop(QWidget):
         self.drop_box.currentTextChanged.connect(self.change_color)
         self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(0).widget().change_color)
         self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(1).widget().change_color)
+        self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(2).widget().change_color)
         # And change the contents of the job-specific section on job selection too
         self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(1).widget().reset)
         # Bring the associated stat-page to the foreground when this selector is interacted with
