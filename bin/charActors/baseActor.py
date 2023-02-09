@@ -24,9 +24,9 @@ class BaseActor:
         self.gcd_time = spd_from_stat(spd, 2500) + 0.005  # [fps estimate included] override for jobs that aren't on 2.5 gcd (2500 ms)
         self.anim_lock = anim_lock
         self.spd_mod = 1.0
-        self.next_gcd = 0.0
-        self.next_ogcd = 0.0
-        self.next_event = 0.0
+        self.next_gcd = -60.0
+        self.next_ogcd = -60.0
+        self.next_event = -60.0
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
@@ -348,16 +348,15 @@ class ResourceDC:
 
 @ dataclass
 class TimedResourceDC(ResourceDC):
-    max_charges: int = 1
-    charge_count: int = -1
-    charge_time: float = 0.0
+    charge_time: float = 1.0
     charge_cd: float = 0.0  # The recharge cooldown
+    amount: int = -1
 
     def __post_init__(self):
-        if self.charge_count == -1:
+        if self.amount == -1:
             # Set starting charges to max charges, unless specified otherwise
-            self.charge_count = self.max_charges
-        if self.charge_count == 0:
+            self.amount = self.max
+        if self.amount == 0:
             # If the count starts at zero, then the cd starts automatically too
             self.charge_cd = self.charge_time
 
@@ -367,22 +366,22 @@ class TimedResourceDC(ResourceDC):
             return
 
         # Add a charge for each full pass over the charge time
-        self.charge_count += time_change // self.charge_time
+        self.amount += time_change // self.charge_time
         # Now adjust for the extra time
         extra_time = time_change % self.charge_time
         # Check if this extra time also passed the current cooldown
         if (self.charge_cd - extra_time) <= 0:
             # Add a charge
-            self.charge_count += 1
+            self.amount += 1
             # Set the new cooldown
             self.charge_cd = round(self.charge_time + (self.charge_cd - extra_time), 3)
         else:
             # Set the new cooldown
             self.charge_cd = round(self.charge_cd - extra_time, 3)
         # Check if the charges have hit their max
-        if self.charge_count >= self.max_charges:
+        if self.amount >= self.max:
             # Reset to max
-            self.charge_count = self.max_charges
+            self.amount = self.max
             # And 'stop' the cooldown count
             self.charge_cd = 0
 
@@ -447,7 +446,7 @@ class DotDC:
     # a class to hold the information for each DoT
     potency: int
     duration: float
-    buff_snap: tuple
+    buff_snap: tuple = field(default_factory=tuple)
     timer: float = 0.0
 
     def update_time(self, time_change):

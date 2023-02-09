@@ -350,6 +350,8 @@ class StatPage(QWidget):
                 color = 'cyan'
             case 'SAM':
                 color = 'orange'
+            case 'SGE':
+                color = 'teal'
             case 'WHM':
                 color = 'white'
 
@@ -396,6 +398,8 @@ class JobCustom(QWidget):
                 color = 'cyan'
             case 'SAM':
                 color = 'orange'
+            case 'SGE':
+                color = 'teal'
             case 'WHM':
                 color = 'white'
 
@@ -485,6 +489,8 @@ class RotationSelection(QWidget):
                 color = 'cyan'
             case 'SAM':
                 color = 'orange'
+            case 'SGE':
+                color = 'teal'
             case 'WHM':
                 color = 'white'
 
@@ -526,7 +532,7 @@ class LabeledDrop(QWidget):
 
         # Create the dropdown selector
         self.drop_box = QComboBox()
-        self.drop_box.addItems(['Job', 'AST', 'BLM', 'DRK', 'DRG', 'DNC', 'PLD', 'SAM', 'WHM'])
+        self.drop_box.addItems(['Job', 'AST', 'BLM', 'DRK', 'DRG', 'DNC', 'PLD', 'SAM', 'SGE', 'WHM'])
         # Connect this dropdown to actions
         # Change the color of this and the associated page, based on job selection
         self.drop_box.currentTextChanged.connect(self.change_color)
@@ -563,6 +569,8 @@ class LabeledDrop(QWidget):
                 color = 'cyan'
             case 'SAM':
                 color = 'orange'
+            case 'SGE':
+                color = 'teal'
             case 'WHM':
                 color = 'white'
 

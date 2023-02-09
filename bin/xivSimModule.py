@@ -1,7 +1,7 @@
 # A damage simulator for Final Fantasy XIV teams
 
 from simFunctions import sim_battle, damage_iteration
-from charActors import ast, blm, drk, drg, dnc, pld, sam, whm
+from charActors import ast, blm, drk, drg, dnc, pld, sam, sge, whm
 from PyQt5.QtCore import QThread, pyqtSignal
 import numpy as np
 import time
@@ -81,21 +81,23 @@ class XIVSimThread(QThread):
 
             # Create Actor
             if job == 'AST':
-                actor = ast.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=i)
+                actor = ast.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             elif job == 'BLM':
-                actor = blm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = blm.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             elif job == 'DRK':
-                actor = drk.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = drk.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             elif job == 'DRG':
-                actor = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = drg.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             elif job == 'DNC':
                 actor = dnc.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i, **player['specifics'])
             elif job == 'PLD':
-                actor = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = pld.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             elif job == 'SAM':
-                actor = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i, **player['specifics'])
+                actor = sam.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i, **player['specifics'])
+            elif job == 'SGE':
+                actor = sge.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i, **player['specifics'])
             elif job == 'WHM':
-                actor = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=i)
+                actor = whm.Actor(wd, main, det, spd, crit, dhit, 3.12, player_id=i)
             else:
                 print("Failed actor")
                 continue
@@ -114,7 +116,7 @@ class XIVSimThread(QThread):
         actor_list = [player0, player1, player2, player3, player4, player5, player6, player7]'''
 
         # Replay the fight multiple times to build statistics
-        # A list for holding all of the generated fight damage values
+        # A list for holding all the generated fight damage values
         dmg_list = []
         # Collect the simulation properties
         battle_iterations = self.stats['sims']  # iterations for stochastic fight rotation variance

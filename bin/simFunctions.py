@@ -119,7 +119,8 @@ def sim_battle(fight_length, actor_list, verbose=False):
                                        "Multiplier", "Flat Damage", "Full Damage", "Resources"])
 
     # initialize time
-    time = 0.0
+    prepull_time = -60.0
+    time = prepull_time
     fight_length = fight_length  # fight duration (provided by user)
     # randomize boss enemy tick
     dot_tick = round(np.random.rand() * 3, 2)
@@ -128,6 +129,8 @@ def sim_battle(fight_length, actor_list, verbose=False):
     event_tracker = np.zeros((3, len(actor_list)))
     # update with dot timers
     event_tracker[2] = [dot_tick] * len(actor_list)
+    # look for prepull actions
+    event_tracker[0] = [prepull_time] * len(actor_list)
 
     # create a delay queue for delayed buff effects
     buff_queue = []

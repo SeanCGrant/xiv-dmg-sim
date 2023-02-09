@@ -36,6 +36,14 @@ class Actor(BaseActor):
 
         if self.next_event == self.next_gcd:
             # use a GCD
+
+            # Prepull
+            if self.next_event < 0.0:
+                # No prepull
+                self.next_gcd = 0.0
+                self.next_event = self.next_gcd
+                return None, 0.0
+
             # use dummy GCD
             action = 'GCD-dummy'
             if self.allowed_action(action):

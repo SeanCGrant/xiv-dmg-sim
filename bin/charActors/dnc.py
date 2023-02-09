@@ -112,10 +112,29 @@ class Actor(BaseActor):
         # determine current action, based on current buffs/procs
 
         if self.next_event == self.next_gcd:
+            # Prepull
+            if self.next_event < 0.0:
+                # Jump to -15 sec if needed
+                if self.next_event < -15.0:
+                    # Wait for 15 sec before pull
+                    self.next_gcd = -15.0
+                    self.next_event = self.next_gcd
+                    return None, 0.0
+                if self.next_event <= -15.0:
+                    # Start Standard Step at -15, but give it a 'cast' until on pull
+                    current_time = self.next_event
+                    self.initiate_action('StandardStep')
+                    self.next_gcd = 1.5
+                    self.next_event = self.next_gcd
+                    return 'StandardStep', -current_time
+
             # use a GCD
             if self.next_event == 0.0:
-                # open fight with Standard
-                return self.initiate_action('StandardStep')
+                # open fight with Standard, if not used prepull
+                action = 'StandardStep'
+                if self.allowed_action(action):
+                    return self.initiate_action(action)
+                #return self.initiate_action('StandardStep')
             if self.actions['TechnicalStep'].cooldown <= 0:
                 # use Technical every time it's up
                 return self.initiate_action('TechnicalStep')
@@ -156,6 +175,11 @@ class Actor(BaseActor):
                     action = 'FlourishingReverseCascade'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
+                    # Use Standard if there is time to finish it in buffs
+                    if self.buffs['Technical'].timer > 3.5:
+                        action = 'StandardStep'
+                        if self.allowed_action(action):
+                            return self.initiate_action(action)
                     action = 'Fountain'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
