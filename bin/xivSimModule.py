@@ -49,35 +49,35 @@ class XIVSimThread(QThread):
         ranged_list = ['BRD', 'DNC', 'MCH']
         ranged_bonus = 0.01
 
-        # create character actors
+        # Generate role bonus
+        # Collect all jobs in the party
+        job_list = [player['job'] for player in self.stats['players']]
+        # Check for each role in the party
+        if any([job in job_list for job in tank_list]):
+            # Add the bonus for this role
+            role_bonus += tank_bonus
+        if any([job in job_list for job in healer_list]):
+            role_bonus += healer_bonus
+        if any([job in job_list for job in melee_list]):
+            role_bonus += melee_bonus
+        if any([job in job_list for job in caster_list]):
+            role_bonus += caster_bonus
+        if any([job in job_list for job in ranged_list]):
+            role_bonus += ranged_bonus
+
+        # Create character actors
         # Keep the actors in a list
         actor_list = []
         for i, player in enumerate(self.stats['players']):
             job = player['job']
 
-            # update role bonus
-            if job in tank_list:
-                # Add the bonus for this role
-                role_bonus += tank_bonus
-                # Only get the bonus once
-                tank_bonus = 0.0
-            elif job in healer_list:
-                role_bonus += healer_bonus
-                healer_bonus = 0.0
-            elif job in melee_list:
-                role_bonus += melee_bonus
-                melee_bonus = 0.0
-            elif job in caster_list:
-                role_bonus += caster_bonus
-                caster_bonus = 0.0
-            elif job in ranged_list:
-                role_bonus += ranged_bonus
-                ranged_bonus = 0.0
-
             # Gather Actor stats
             wd, main, spd, crit, dhit, det = int_val(player['stats']['WD']), int_val(player['stats']['Main Stat']),\
                                              int_val(player['stats']['Speed Stat']), int_val(player['stats']['Crit']),\
                                              int_val(player['stats']['Dhit']), int_val(player['stats']['Det'])
+
+            # Apply party bonus
+            main = main * role_bonus
 
             # Create Actor
             if job == 'AST':
@@ -147,12 +147,8 @@ class XIVSimThread(QThread):
 
             print('############### Battle Iteration {} Done ###############'.format(i + 1))
 
-        # Apply party role composition bonus
-        sim_log['Full Damage'] = sim_log['Full Damage'] * role_bonus
-        sim_log['Flat Damage'] = sim_log['Flat Damage'] * role_bonus
-        dmg_list = np.array(dmg_list) * role_bonus
         # Convert damage to dps
-        dps_list = dmg_list / (fight_sim_duration - 3.5)
+        dps_list = np.array(dmg_list) / fight_sim_duration
 
         print('First 20 rows of last battle sim:')
         print(sim_log.loc[sim_log['Player'] == 0][['Time', 'Player', 'Type', 'Multiplier', 'Crit Rate', "Full Damage"]][
@@ -172,7 +168,7 @@ class XIVSimThread(QThread):
 
         # Print the mean damage
         print(
-            f"mean damage: {np.mean(dmg_list) / (fight_sim_duration - 3.5)}")  # subtracting 3.5 for the "prepull dance prep"
+            f"mean damage: {np.mean(dmg_list) / fight_sim_duration}")
 
         # End timer
         print("~~ Time: {} seconds".format(time.perf_counter() - start_time))

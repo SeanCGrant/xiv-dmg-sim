@@ -223,7 +223,7 @@ class MainWindow(QMainWindow):
         # Put labels and legends
         self.plot.axes.set_xlabel('Damage Per Second (DPS)')
         self.plot.axes.set_ylabel('Count')
-        self.plot.axes.set_title('Histogram of DNC DPS')
+        self.plot.axes.set_title('Histogram of Team DPS')
         self.plot.axes.legend()
         self.plot.draw()
         # Update the additional text information
@@ -334,26 +334,7 @@ class StatPage(QWidget):
 
     def change_color(self, job):
         # Change the background color based on the selected job
-        color = 'grey'
-        match job:
-            case 'AST':
-                color = 'yellow'
-            case 'BLM':
-                color = 'purple'
-            case 'DRK':
-                color = 'magenta'
-            case 'DRG':
-                color = 'blue'
-            case 'DNC':
-                color = 'pink'
-            case 'PLD':
-                color = 'cyan'
-            case 'SAM':
-                color = 'orange'
-            case 'SGE':
-                color = 'teal'
-            case 'WHM':
-                color = 'white'
+        color = color_selector(job)
 
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor(color))
@@ -382,26 +363,7 @@ class JobCustom(QWidget):
 
     def change_color(self, job):
         # Change the background color based on the selected job
-        color = 'grey'
-        match job:
-            case 'AST':
-                color = 'yellow'
-            case 'BLM':
-                color = 'purple'
-            case 'DRK':
-                color = 'magenta'
-            case 'DRG':
-                color = 'blue'
-            case 'DNC':
-                color = 'pink'
-            case 'PLD':
-                color = 'cyan'
-            case 'SAM':
-                color = 'orange'
-            case 'SGE':
-                color = 'teal'
-            case 'WHM':
-                color = 'white'
+        color = color_selector(job)
 
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor(color))
@@ -473,26 +435,7 @@ class RotationSelection(QWidget):
 
     def change_color(self, job):
         # Change the background color based on the selected job
-        color = 'grey'
-        match job:
-            case 'AST':
-                color = 'yellow'
-            case 'BLM':
-                color = 'purple'
-            case 'DRK':
-                color = 'magenta'
-            case 'DRG':
-                color = 'blue'
-            case 'DNC':
-                color = 'pink'
-            case 'PLD':
-                color = 'cyan'
-            case 'SAM':
-                color = 'orange'
-            case 'SGE':
-                color = 'teal'
-            case 'WHM':
-                color = 'white'
+        color = color_selector(job)
 
         palette = self.palette()
         palette.setColor(QPalette.Window, QColor(color))
@@ -553,26 +496,7 @@ class LabeledDrop(QWidget):
 
     def change_color(self, job):
         # Change the color based on the selected job
-        color = 'grey'
-        match job:
-            case 'AST':
-                color = 'yellow'
-            case 'BLM':
-                color = 'purple'
-            case 'DRK':
-                color = 'magenta'
-            case 'DRG':
-                color = 'blue'
-            case 'DNC':
-                color = 'pink'
-            case 'PLD':
-                color = 'cyan'
-            case 'SAM':
-                color = 'orange'
-            case 'SGE':
-                color = 'teal'
-            case 'WHM':
-                color = 'white'
+        color = color_selector(job)
 
         # change previously active background back
         base_color = self.window.palette().color(QPalette.Window)
@@ -606,7 +530,7 @@ class MplCanvas(FigureCanvasQTAgg):
         # Set the initial labels and title
         self.axes.set_xlabel('Damage Per Second (DPS)')
         self.axes.set_ylabel('Count')
-        self.axes.set_title('Histogram of DNC DPS')
+        self.axes.set_title('Histogram of Team DPS')
         super(MplCanvas, self).__init__(fig)
 
 
@@ -618,6 +542,34 @@ def clear_layout(layout):
                 child.widget().deleteLater()
             elif child.layout() is not None:
                 clear_layout(child.layout())
+
+
+def color_selector(job):
+    # Choose the color based on the selected job
+    # default to grey if no match
+    color = 'grey'
+
+    match job:
+        case 'AST':
+            color = 'yellow'
+        case 'BLM':
+            color = 'purple'
+        case 'DRK':
+            color = 'magenta'
+        case 'DRG':
+            color = 'blue'
+        case 'DNC':
+            color = 'pink'
+        case 'PLD':
+            color = 'cyan'
+        case 'SAM':
+            color = 'orange'
+        case 'SGE':
+            color = 'teal'
+        case 'WHM':
+            color = 'white'
+
+    return color
 
 
 if __name__ == '__main__':

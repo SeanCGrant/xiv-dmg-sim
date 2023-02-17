@@ -351,6 +351,11 @@ def damage_iteration(actor_list, sim_log):
     # "roll the dice"
     crit_dice = np.random.rand(len(sim_log['Potency']))
     dhit_dice = np.random.rand(len(sim_log['Potency']))
+    # built in +/-5% damage variance
+    dmg_dice = 0.95 + np.random.rand(len(sim_log['Potency'])) * 0.10
+
+    # Add damage variance column
+    sim_log['Dmg Variance'] = dmg_dice
 
     # evaluate for each player (b/c different crit multipliers)
     for k in range(len(actor_list)):
@@ -361,7 +366,8 @@ def damage_iteration(actor_list, sim_log):
             1 + 0.25 * (sim_log['Dhit Rate'] > dhit_dice)
 
     # apply rng multipliers
-    sim_log['Full Damage'] = sim_log['Flat Damage'] * sim_log['Crit Multiplier'] * sim_log['Dhit Multiplier']
+    sim_log['Full Damage'] = np.floor(np.floor(np.floor(sim_log['Flat Damage'] * sim_log['Crit Multiplier']) *
+                                      sim_log['Dhit Multiplier']) * sim_log['Dmg Variance'])
 
 
 def plot_hist(dmg_list):
