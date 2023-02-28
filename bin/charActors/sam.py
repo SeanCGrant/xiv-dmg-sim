@@ -19,12 +19,12 @@ class Actor(BaseActor):
         self.resources = {}
 
         # sam personal buffs
-        buffs = {'Shifu': BuffDC('spd', 1000.0, 0.13)}
+        buffs = {'Shifu': BuffDC('spd', 1000.0, 0.13), 'Shifu-auto': BuffDC('auto-spd', 1000.0, 0.13)}
         self.buffs.update(buffs)
 
         # sam actions
         actions = {'Shifu-dummy': ActionDC('gcd', 0, self.gcd_time, self.gcd_time, 0.0,
-                                           buff_effect={'self': ['Shifu']}),
+                                           buff_effect={'self': ['Shifu', 'Shifu-auto']}),
                    'GCD-dummy': ActionDC('gcd', 0, self.gcd_time, self.gcd_time)}
         self.actions.update(actions)
 

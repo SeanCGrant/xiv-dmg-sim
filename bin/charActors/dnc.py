@@ -134,7 +134,6 @@ class Actor(BaseActor):
                 action = 'StandardStep'
                 if self.allowed_action(action):
                     return self.initiate_action(action)
-                #return self.initiate_action('StandardStep')
             if self.actions['TechnicalStep'].cooldown <= 0:
                 # use Technical every time it's up
                 return self.initiate_action('TechnicalStep')

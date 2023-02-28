@@ -241,28 +241,32 @@ def sim_battle(fight_length, actor_list, verbose=False):
                     print(f"Performs: {action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
 
                 # distribute any given resources
+                # Tech overrides Standard
+                tech_override = False
                 # check if player has any tracked buffs, and whether this action can give
                 if (actor_list[player].buff_tracked) & (actor_list[player].actions[action_name].type == 'gcd'):
                     for buff in actor_list[player].tracked_buffs:
                         tracked_buff = actor_list[player].buffs[buff]
 
-                        # Self-given buffs don't count (does monk?)
-                        if player != tracked_buff.buff_giver:
-                            # Tech overrides Standard
-                            tech_override = False
-                            if buff == 'TechEsprit':
-                                if tracked_buff.timer > 0:
-                                    tech_override = True
-                            if (buff == 'StandardEsprit') & (tech_override):
+                        # Self-given buffs don't count (except Monk)
+                        if buff != 'Self-Meditative':
+                            if player == tracked_buff.buff_giver:
                                 continue
 
-                            # check that the buff is still active, and roll the dice on rng
-                            if (tracked_buff.timer > 0) & (tracked_buff.gift['rng'] > np.random.rand()):
-                                # give the resource, without going over the max
-                                actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount =\
-                                    min(actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount
-                                        + tracked_buff.gift['value'],
-                                        actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].max)
+                        if buff == 'TechEsprit':
+                            # If Tech is up, then don't look at Standard, when it comes around
+                            if tracked_buff.timer > 0:
+                                tech_override = True
+                        if (buff == 'StandardEsprit') & (tech_override):
+                            continue
+
+                        # check that the buff is still active, and roll the dice on rng
+                        if (tracked_buff.timer > 0) & (tracked_buff.gift['rng'] > np.random.rand()):
+                            # give the resource, without going over the max
+                            actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount =\
+                                min(actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].amount
+                                    + tracked_buff.gift['value'],
+                                    actor_list[tracked_buff.buff_giver].resources[tracked_buff.gift['name']].max)
 
                 # put buffs in the queue
                 team_buffs = event_buffs.get('team', [])

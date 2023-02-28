@@ -24,6 +24,7 @@ class BaseActor:
         self.gcd_time = spd_from_stat(spd, 2500) + 0.005  # [fps estimate included] override for jobs that aren't on 2.5 gcd (2500 ms)
         self.anim_lock = anim_lock
         self.spd_mod = 1.0
+        self.auto_spd_mod = 1.0
         self.next_gcd = -60.0
         self.next_ogcd = -60.0
         self.next_event = -60.0
@@ -42,8 +43,11 @@ class BaseActor:
                       'Devilment_crit': BuffDC('crit', 20.0, 0.2),
                       'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
                       'Divination': BuffDC('dmg', 15.0, 1.06),
-                      'BattleLitany': BuffDC('crit', 15.0, 0.1)}
-        self.tracked_buffs = ['TechEsprit', 'StandardEsprit']
+                      'BattleLitany': BuffDC('crit', 15.0, 0.1),
+                      'Brotherhood': BuffDC('dmg', 15.0, 1.05),
+                      'Meditative Brotherhood': TargetedBuff('given', 15.0,
+                                                             gift={'name': 'chakra', 'value': 1, 'rng': 0.2})}
+        self.tracked_buffs = ['TechEsprit', 'StandardEsprit', 'Meditative Brotherhood']
         self.buff_tracked = False
         self.resources = {}
         self.actions = {}
@@ -71,7 +75,7 @@ class BaseActor:
 
     def inc_auto(self):
         # move to the next auto
-        self.next_auto += self.wpn_delay
+        self.next_auto += self.wpn_delay * self.auto_spd_mod
 
         return self.auto_potency, self.buff_state()
 
@@ -103,10 +107,25 @@ class BaseActor:
         # check the cooldown (REMOVE?)
         if action.cooldown > 0.0:  # wiggle room for float precision (TO-DO: floor values appropriately)
             return False
-        # check for proc (logistical buffs, usually)
-        for proc in action.buff_removal:
-            if self.buffs[proc].timer <= 0.0:
+        # Check for disallowed buffs
+        for buff in action.disallowed_buff:
+            if self.buffs[buff].timer > 0.0:
                 return False
+        # check for required buffs, procs, etc.
+        for proc in action.buff_removal + action.required_buff:
+            if isinstance(proc, list):
+                # Check for any one of the buffs, if a conditional list is given
+                valid = True
+                for buff_opt in proc:
+                    if self.buffs[buff_opt].timer > 0.0:
+                        valid = True
+                        break
+                # If none of the buffs are present
+                if not valid:
+                    return False
+            else:
+                if self.buffs[proc].timer <= 0.0:
+                    return False
         # check for necessary resources
         for resource, val in action.resource.items():
             if isinstance(val, Chance):
@@ -173,11 +192,23 @@ class BaseActor:
         if callable(potency):
             potency = potency()
         m, crit, dhit = self.buff_state()
-        if action.autocrit:
+        # Check for auto-crit
+        if isinstance(action.autocrit, BuffConditional):
+            autocrit = action.autocrit.check()
+        else:
+            autocrit = action.autocrit
+        # Apply auto-crit changes if applicable
+        if autocrit:
             crit = 1.0
             # Patch 6.2: Apply dmg bonus for crit rate buffs
             m *= 1 + ((self.crit_rate - self.base_crit) * (self.base_crit + 0.35))
-        if action.autodhit:
+        # Check for auto-dhit
+        if isinstance(action.autodhit, BuffConditional):
+            autodhit = action.autodhit.check()
+        else:
+            autodhit = action.autodhit
+        # Apply auto-dhit changes if applicable
+        if autodhit:
             dhit = 1.0
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
@@ -188,9 +219,17 @@ class BaseActor:
         if isinstance(action.buff_effect, BuffSelector):
             buff_effect = buff_effect.select()
 
-        # remove any buffs
-        for buff in action.buff_removal:
-            self.remove_buff(buff)
+        # Remove buffs as necessary
+        for buff in action.buff_removal + action.buff_removal_opt:
+            if isinstance(buff, list):
+                # Remove only the first active buff in the list if a conditional list is given
+                for buff_opt in buff:
+                    if self.buffs[buff_opt].timer > 0:
+                        self.remove_buff(buff_opt)
+                        break
+            else:
+                # Remove Buff
+                self.remove_buff(buff)
 
         # apply any dots
         dot = action.dot_effect
@@ -220,6 +259,8 @@ class BaseActor:
                         self.dhit_rate += self.buffs[buff].value
                     case 'spd':
                         self.spd_mod *= (1 - self.buffs[buff].value)
+                    case 'auto-spd':
+                        self.auto_spd_mod *= (1 - self.buffs[buff].value)
                     case 'given':
                         # make sure the player is flagged as having a tracked buff
                         self.buff_tracked = True
@@ -242,6 +283,8 @@ class BaseActor:
                 self.dhit_rate -= self.buffs[buff].value
             case 'spd':
                 self.spd_mod /= (1 - self.buffs[buff].value)
+            case 'auto-spd':
+                self.auto_spd_mod /= (1 - self.buffs[buff].value)
             case 'given':
                 # remove the tracked flag...
                 self.buff_tracked = False
@@ -423,22 +466,57 @@ class TargetedBuff(BuffDC):
 @dataclass
 class BuffSelector:
     # a class used when the buff that gets used depends on the state of the actor
+
+    actor: BaseActor
     buff_selection: list  # Potential buffs to send
     sticker_selection: list  # The 'stickers' that affect which buff to choose
-    actor: BaseActor
+    mode: str = 'count'  # 'count' or 'type'
 
     def select(self):
-        # count how many of the stickers are present
-        count = 0
-        for sticker in self.sticker_selection:
-            if self.actor.resources[sticker].amount == 1:
-                count += 1
+        if self.mode == 'count':
+            # count how many of the stickers are present
+            count = 0
+            for sticker in self.sticker_selection:
+                if self.actor.resources[sticker].amount == 1:
+                    count += 1
 
-        # Send no buffs back if no stickers
-        if count == 0:
+            # Send no buffs back if no stickers
+            if count == 0:
+                return {}
+            # Otherwise select the appropriate buff
+            return self.buff_selection[count - 1]
+
+        if self.mode == 'type':
+            # Choose the list item that corresponds with the first buff present in the list
+            for i, buff in enumerate(self.sticker_selection):
+                if self.actor.buffs[buff].timer > 0.0:
+                    return self.buff_selection[i]
+            # If none of the conditional buffs are present
+            # Check if an extra item exists in the buff_selection list
+            if len(self.buff_selection) == i+2:
+                # return that item (the no-buff option)
+                return self.buff_selection[i+1]
+            # Otherwise send no buffs back
+            else:
+                return {}
+
+        else:
+            # no valid mode provided -- send back no buffs
             return {}
-        # Otherwise select the appropriate buff
-        return self.buff_selection[count - 1]
+
+
+@dataclass
+class BuffConditional:
+    # A class for truthiness of buff presence
+    actor: BaseActor
+    buffs: list = field(default_factory=list)
+
+    def check(self):
+        # Check if any of the buffs are present, and return True if so
+        for buff in self.buffs:
+            if self.actor.buffs[buff].timer > 0:
+                return True
+        return False
 
 
 @dataclass
@@ -468,11 +546,18 @@ class ActionDC:
     charge_time: float = 0.0
     charge_cd: float = 0.0  # The recharge cooldown
     anim_lock: float = 0.65
-    autocrit: bool = False
-    autodhit: bool = False
+    autocrit: bool | BuffConditional = False
+    autodhit: bool | BuffConditional = False
     spd_adjusted: bool = True
     buff_effect: dict | BuffSelector = field(default_factory=dict)  # (['self', 'team', 'target']: ['*buff names*'])
+    # Used for most things -- buffs that are required and removed
     buff_removal: list = field(default_factory=list)  # ['*buff names*']
+    # Used when the buffs are removed, but not required for the action
+    buff_removal_opt: list = field(default_factory=list)
+    # Used when buffs are required, but don't get removed by the action
+    required_buff: list = field(default_factory=list)
+    # Disallowed buffs -- buffs that prevent an action from being used
+    disallowed_buff: list = field(default_factory=list)
     dot_effect: str = 'none'  # 'none', '*dot name*'
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
