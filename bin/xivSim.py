@@ -337,7 +337,7 @@ class StatPage(QWidget):
         color = color_selector(job)
 
         palette = self.palette()
-        palette.setColor(QPalette.Window, QColor(color))
+        palette.setColor(QPalette.Window, color)
         self.setPalette(palette)
 
 
@@ -366,7 +366,7 @@ class JobCustom(QWidget):
         color = color_selector(job)
 
         palette = self.palette()
-        palette.setColor(QPalette.Window, QColor(color))
+        palette.setColor(QPalette.Window, color)
         self.setPalette(palette)
 
     def reset(self, job):
@@ -438,7 +438,7 @@ class RotationSelection(QWidget):
         color = color_selector(job)
 
         palette = self.palette()
-        palette.setColor(QPalette.Window, QColor(color))
+        palette.setColor(QPalette.Window, color)
         self.setPalette(palette)
 
     def select_file(self):
@@ -505,7 +505,7 @@ class LabeledDrop(QWidget):
         self.window.choices[self.window.active_choice].setPalette(palette)
         # change this background to match
         palette = self.palette()
-        palette.setColor(QPalette.Window, QColor(color))
+        palette.setColor(QPalette.Window, color)
         self.setPalette(palette)
         # set this choice to active
         self.window.active_choice = self.id
@@ -547,27 +547,47 @@ def clear_layout(layout):
 def color_selector(job):
     # Choose the color based on the selected job
     # default to grey if no match
-    color = 'grey'
+    color = QColor('grey')
 
     match job:
         case 'AST':
-            color = 'yellow'
+            color = QColor(255, 231, 74)
         case 'BLM':
-            color = 'purple'
+            color = QColor(165, 121, 214)
+        case 'BRD':
+            color = QColor(145, 186, 94)
         case 'DRK':
-            color = 'magenta'
+            color = QColor(209, 38, 204)
         case 'DRG':
-            color = 'blue'
+            color = QColor(65, 100, 205)
         case 'DNC':
-            color = 'pink'
+            color = QColor(226, 176, 175)
+        case 'GNB':
+            color = QColor(153, 141, 80)
+        case 'MCH':
+            color = QColor(110, 225, 214)
+        case 'MNK':
+            color = QColor(214, 156, 0)
+        case 'NIN':
+            color = QColor(175, 25, 100)
         case 'PLD':
-            color = 'cyan'
+            color = QColor(168, 210, 230)
+        case 'RDM':
+            color = QColor(232, 123, 123)
+        case 'RPR':
+            color = QColor(150, 90, 144)
         case 'SAM':
-            color = 'orange'
+            color = QColor(228, 109, 4)
+        case 'SCH':
+            color = QColor(134, 87, 255)
         case 'SGE':
-            color = 'teal'
+            color = QColor(128, 160, 240)
+        case 'SMN':
+            color = QColor(45, 155, 120)
+        case 'WAR':
+            color = QColor(207, 38, 33)
         case 'WHM':
-            color = 'white'
+            color = QColor(255, 240, 220)
 
     return color
 

@@ -579,12 +579,12 @@ class ActionDC:
     potency: int | Callable
     recast: float = 2.5
     gcd_lock: float = 0
-    cooldown: float = 0  # The recast cooldown
+    cooldown: float = 0  # The dynamic recast cooldown
     cast_time: float = 0  # This should be the in-game "cast time" minus 0.5s for the snapshot point
     max_charges: int = 1
     charge_count: int = -1
     charge_time: float = 0.0  # How long it takes to generate a charge
-    charge_cd: float = 0.0  # The recharge cooldown
+    charge_cd: float = 0.0  # The dynamic recharge cooldown
     anim_lock: float = 0.65
     autocrit: bool | BuffConditional = False
     autodhit: bool | BuffConditional = False
