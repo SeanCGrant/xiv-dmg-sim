@@ -98,6 +98,46 @@ class BaseActor:
 
         return None, 0.0
 
+    def go_to_cd(self, action_name):
+        action = self.actions[action_name]
+        # Go to when the action is off cd
+        # Determine when action will be usable -- both cooldown and charges are available
+        charge_wait = 0
+        if action.charge_count < 1:
+            charge_wait = action.charge_cd
+        wait_time = round(max(action.cooldown, charge_wait), 3)
+
+        # Adjust event timers based on this wait, and whether the action is a GCD or oGCD
+        if action.type == 'ogcd':
+            # Move ogcd to the desired action time
+            self.next_ogcd = round(self.next_event + wait_time, 3)
+            # Only change GCD if this ogcd is available after the next gcd
+            self.next_gcd = round(max(self.next_gcd, self.next_ogcd), 3)
+            # Update next event
+            self.next_event = round(min(self.next_gcd, self.next_ogcd), 3)
+        else:
+            # Move GCD to desired action time
+            self.next_gcd = round(self.next_event + wait_time, 3)
+            # Move up oGCD too, just in case
+            self.next_ogcd = self.next_gcd
+            # Update next event
+            self.next_event = round(self.next_gcd, 3)
+
+        # Put no action in the queue right now
+        return None, 0.0
+
+    def is_off_cd(self, action_name):
+        action = self.actions[action_name]
+        # Return True if action is usable from a cooldown and charge perspective
+        # Check the charges
+        if action.charge_count < 1:
+            return False
+        # Check the cooldown
+        if action.cooldown > 0.0:
+            return False
+        # Return True if we have made it here
+        return True
+
     def allowed_action(self, action_name):
         action = self.actions[action_name]
 
@@ -105,7 +145,7 @@ class BaseActor:
         if action.charge_count < 1:
             return False
         # check the cooldown (REMOVE?)
-        if action.cooldown > 0.0:  # wiggle room for float precision (TO-DO: floor values appropriately)
+        if action.cooldown > 0.0:
             return False
         # Check for disallowed buffs
         for buff in action.disallowed_buff:
@@ -543,7 +583,7 @@ class ActionDC:
     cast_time: float = 0  # This should be the in-game "cast time" minus 0.5s for the snapshot point
     max_charges: int = 1
     charge_count: int = -1
-    charge_time: float = 0.0
+    charge_time: float = 0.0  # How long it takes to generate a charge
     charge_cd: float = 0.0  # The recharge cooldown
     anim_lock: float = 0.65
     autocrit: bool | BuffConditional = False
