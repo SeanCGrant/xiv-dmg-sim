@@ -24,7 +24,7 @@ class Actor(BaseActor):
         # mnk specific resources
         self.resources = {'chakra': ResourceDC(5, 5), 'Lunar Nadi': ResourceDC(1), 'Solar Nadi': ResourceDC(1)}
 
-        # dnc personal buffs
+        # mnk personal buffs
         buffs = {'Riddle of Fire': BuffDC('dmg', 20.0, 1.15), 'Disciplined Fist': BuffDC('dmg', 15.0, 1.15),
                  'Riddle of Wind': BuffDC('auto-spd', 15.0, 0.5),
                  'Oppo-oppo': BuffDC('logistic', 30.0), 'Raptor': BuffDC('logistic', 30.0),

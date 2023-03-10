@@ -324,6 +324,9 @@ def sim_battle(fight_length, actor_list, verbose=False):
                     event_type = "dot tick"
                     log_event(time, player, event_type, "dot", event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
 
+            # And execute actor ticks here
+            actor_list[player].execute_actor_tick()
+
             # increment dot tracker
             event_tracker[2, player] = event_tracker[2, player] + 3
 

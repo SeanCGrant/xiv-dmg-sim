@@ -42,6 +42,13 @@ class BaseActor:
                                                      gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
                       'Devilment_crit': BuffDC('crit', 20.0, 0.2),
                       'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
+                      'Mages Ballad': BuffDC('dmg', 45.0, 1.05),
+                      'Wanderers Minuet': BuffDC('crit', 45.0, 0.02),
+                      'Armys Paeon': BuffDC('dhit', 45.0, 0.03),
+                      'Radiant Finale 1': BuffDC('dmg', 15.0, 1.02),
+                      'Radiant Finale 2': BuffDC('dmg', 15.0, 1.04),
+                      'Radiant Finale 3': BuffDC('dmg', 15.0, 1.06),
+                      'Battle Voice': BuffDC('dhit', 15.0, 0.2),
                       'Divination': BuffDC('dmg', 15.0, 1.06),
                       'BattleLitany': BuffDC('crit', 15.0, 0.1),
                       'Brotherhood': BuffDC('dmg', 15.0, 1.05),
@@ -138,6 +145,9 @@ class BaseActor:
         # Return True if we have made it here
         return True
 
+    def execute_actor_tick(self):
+        pass
+
     def allowed_action(self, action_name):
         action = self.actions[action_name]
 
@@ -149,7 +159,7 @@ class BaseActor:
             return False
         # Check for disallowed buffs
         for buff in action.disallowed_buff:
-            if self.buffs[buff].timer > 0.0:
+            if self.buffs[buff].active():
                 return False
         # check for required buffs, procs, etc.
         for proc in action.buff_removal + action.required_buff:
@@ -157,14 +167,14 @@ class BaseActor:
                 # Check for any one of the buffs, if a conditional list is given
                 valid = True
                 for buff_opt in proc:
-                    if self.buffs[buff_opt].timer > 0.0:
+                    if self.buffs[buff_opt].active():
                         valid = True
                         break
                 # If none of the buffs are present
                 if not valid:
                     return False
             else:
-                if self.buffs[proc].timer <= 0.0:
+                if not self.buffs[proc].active():
                     return False
         # check for necessary resources
         for resource, val in action.resource.items():
@@ -226,6 +236,10 @@ class BaseActor:
     def perform_action(self, action):
         action = self.actions[action]
 
+        # Execute any additional functionality
+        for func in action.additional_effect:
+            func()
+
         # values to be returned
         potency = action.potency
         # Calculate potency if needed
@@ -264,7 +278,7 @@ class BaseActor:
             if isinstance(buff, list):
                 # Remove only the first active buff in the list if a conditional list is given
                 for buff_opt in buff:
-                    if self.buffs[buff_opt].timer > 0:
+                    if self.buffs[buff_opt].active():
                         self.remove_buff(buff_opt)
                         break
             else:
@@ -283,12 +297,15 @@ class BaseActor:
         return potency, (m, crit, dhit), buff_effect, action.type
 
     def apply_buff(self, buff, *, giver_id=10):
+        if buff is None:
+            return
+
         if isinstance(buff, Chance):
             # buff has a probability to go off (some procs, for example)
             if np.random.rand() < buff.probability:
                 self.apply_buff(buff.val)
         else:
-            if self.buffs[buff].timer == 0:
+            if not self.buffs[buff].active():
                 # only apply the effect of the buff if actually new (not refreshing)
                 match self.buffs[buff].type:
                     case 'dmg':
@@ -313,6 +330,9 @@ class BaseActor:
             self.buffs[buff].timer = self.buffs[buff].duration
 
     def remove_buff(self, buff):
+        if buff is None:
+            return
+
         # remove the effect of the buff
         match self.buffs[buff].type:
             case 'dmg':
@@ -333,6 +353,10 @@ class BaseActor:
                     if self.buffs[tracked_buff].timer > 0:
                         self.buff_tracked = True
                         break
+
+        # Execute any additional functions
+        for func in self.buffs[buff].removal_additions:
+            func()
 
         # insure the timer goes to zero upon removal
         self.buffs[buff].timer = 0
@@ -369,7 +393,7 @@ class BaseActor:
 
         # Generate a function that checks if the combo is active
         def pot_function():
-            if self.buffs[combo_name].timer > 0:
+            if self.buffs[combo_name].active():
                 # Remove the combo buff when used
                 self.remove_buff(combo_name)
                 # And return the combo'd potency
@@ -379,6 +403,23 @@ class BaseActor:
                 return potency_list[0]
 
         # Return this function
+        return pot_function
+
+    def step_potency(self, pot_steps, resource):
+        # Provide a list of potencies, and the resource that will determine which potency to use
+        def pot_function():
+            # Return the potency amount based on the quantity of the resource
+            return pot_steps[self.resources[resource].amount]
+
+        return pot_function
+
+    def scale_potency(self, base_pot, pot_inc, resource, resource_base=0):
+        # Provide the base potency and the potency increment
+        def pot_function():
+            print(self.resources[resource].amount)
+            # Return the total potency based on the current amount of resource
+            return base_pot + pot_inc * (self.resources[resource].amount - resource_base)
+
         return pot_function
 
     def update_time(self, current_time):
@@ -483,15 +524,24 @@ class BuffDC:
     value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
     delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
     timer: float = 0.0  # the remaining time on the buff
+    # A list of functions to be executed when the buff is removed, to allow flexibility
+    removal_additions: list = field(default_factory=list)
+
+    def active(self):
+        # Report if the buff is active at the moment
+        return self.timer > 0
 
     def update_time(self, time_change):
         remove = False
 
-        if self.timer > 0:
-            if max(self.timer - time_change, 0) == 0:
+        # Adjust the timer if it is not already zero
+        if self.active():
+            # Do not set the timer below zero
+            self.timer = max(round(self.timer - time_change, 3), 0)
+            # Check if the buff timed out
+            if self.timer == 0:
                 # indicate to remove the buff effect
                 remove = True
-            self.timer = max(round(self.timer - time_change, 3), 0)
 
         return remove
 
@@ -509,14 +559,14 @@ class BuffSelector:
 
     actor: BaseActor
     buff_selection: list  # Potential buffs to send
-    sticker_selection: list  # The 'stickers' that affect which buff to choose
-    mode: str = 'count'  # 'count' or 'type'
+    selector: list  # The object(s) that affect which buff to choose
+    mode: str = 'count'  # 'count', 'sticker', or 'type'
 
     def select(self):
-        if self.mode == 'count':
+        if self.mode == 'sticker':
             # count how many of the stickers are present
             count = 0
-            for sticker in self.sticker_selection:
+            for sticker in self.selector:
                 if self.actor.resources[sticker].amount == 1:
                     count += 1
 
@@ -528,7 +578,7 @@ class BuffSelector:
 
         if self.mode == 'type':
             # Choose the list item that corresponds with the first buff present in the list
-            for i, buff in enumerate(self.sticker_selection):
+            for i, buff in enumerate(self.selector):
                 if self.actor.buffs[buff].timer > 0.0:
                     return self.buff_selection[i]
             # If none of the conditional buffs are present
@@ -539,6 +589,10 @@ class BuffSelector:
             # Otherwise send no buffs back
             else:
                 return {}
+
+        if self.mode == 'count':
+            # Choose the list item based on the count of the provided resource
+            return self.buff_selection[self.actor.resources[self.selector[0]].amount]
 
         else:
             # no valid mode provided -- send back no buffs
@@ -554,7 +608,7 @@ class BuffConditional:
     def check(self):
         # Check if any of the buffs are present, and return True if so
         for buff in self.buffs:
-            if self.actor.buffs[buff].timer > 0:
+            if self.actor.buffs[buff].active():
                 return True
         return False
 
@@ -567,8 +621,11 @@ class DotDC:
     buff_snap: tuple = field(default_factory=tuple)
     timer: float = 0.0
 
+    def active(self):
+        return self.timer > 0
+
     def update_time(self, time_change):
-        if self.timer > 0:
+        if self.active():
             self.timer = max(round(self.timer - time_change, 3), 0)
 
 
@@ -600,6 +657,8 @@ class ActionDC:
     disallowed_buff: list = field(default_factory=list)
     dot_effect: str = 'none'  # 'none', '*dot name*'
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
+    # an additional parameter to include a list of function calls when an action is used, to provide flexibility
+    additional_effect: list = field(default_factory=list)
     condition: bool = True  # might hold a place for an actions conditions, e.g. (resources['esprit'] >= 50)
 
     def __post_init__(self):

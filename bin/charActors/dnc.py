@@ -120,7 +120,7 @@ class Actor(BaseActor):
                     self.next_gcd = -15.0
                     self.next_event = self.next_gcd
                     return None, 0.0
-                if self.next_event <= -15.0:
+                if self.next_event >= -15.0:
                     # Start Standard Step at -15, but give it a 'cast' until on pull
                     current_time = self.next_event
                     self.initiate_action('StandardStep')
@@ -139,16 +139,16 @@ class Actor(BaseActor):
                 return self.initiate_action('TechnicalStep')
 
             # inside Tech window
-            if self.buffs['Technical'].timer > 0.0:
-                if (self.buffs['Starfall'].timer < self.gcd_time) & (self.buffs['Starfall'].timer > 0):
+            if self.buffs['Technical'].active():
+                if (self.buffs['Starfall'].timer < self.gcd_time) & (self.buffs['Starfall'].active()):
                     # use Starfall if it is about to drop
                     action = 'Starfall'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
-                if (self.buffs['FF'].timer < self.gcd_time) & (self.buffs['FF'].timer > 0):
+                if (self.buffs['FF'].timer < self.gcd_time) & (self.buffs['FF'].active()):
                     # don't let FF drop
                     return self.initiate_action('Fountainfall')
-                if (self.buffs['RC'].timer < self.gcd_time) & (self.buffs['RC'].timer > 0):
+                if (self.buffs['RC'].timer < self.gcd_time) & (self.buffs['RC'].active()):
                     # don't let RC drop
                     return self.initiate_action('ReverseCascade')
                 if self.resources['esprit'].amount >= 50:
@@ -204,7 +204,7 @@ class Actor(BaseActor):
                     if self.allowed_action(action):
                         return self.initiate_action(action)
                 # basic gcd priority
-                if self.buffs['F'].timer > 0:
+                if self.buffs['F'].active():
                     action = 'Fountainfall'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
@@ -236,7 +236,7 @@ class Actor(BaseActor):
                 return self.go_to_gcd()
 
             # inside Tech window
-            if self.buffs['Technical'].timer > 0.0:
+            if self.buffs['Technical'].active():
                 # use Devilment first chance into Tech
                 action = 'Devilment'
                 if self.allowed_action(action):

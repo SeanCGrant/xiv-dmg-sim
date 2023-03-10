@@ -1,7 +1,7 @@
 # A damage simulator for Final Fantasy XIV teams
 
 from simFunctions import sim_battle, damage_iteration, plot_hist
-from charActors import ast, blm, drk, drg, dnc, pld, sam, whm
+from charActors import ast, blm, brd, drk, drg, dnc, mnk, pld, sam, sge, whm
 import time
 import numpy as np
 
@@ -10,14 +10,14 @@ if __name__ == '__main__':
     start_time = time.perf_counter()
 
     # create character actors (by hand for now)
-    player0 = dnc.Actor(126, 2949, 1721, 536, 2387, 1340, 3.12, player_id=0, partner=1)
+    player0 = brd.Actor(126, 2949, 1721, 536, 2387, 1340, 3.12, player_id=0)
     player1 = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1)
     player2 = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
-    player3 = blm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
-    player4 = ast.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=2)
-    player5 = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
-    player6 = drk.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
-    player7 = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
+    player3 = blm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=3)
+    player4 = ast.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=4)
+    player5 = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=5)
+    player6 = drk.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=6)
+    player7 = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=7)
     actor_list = [player0, player1, player2, player3, player4, player5, player6, player7]
 
     # Replay the fight multiple times to build statistics
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     print('First 20 rows of last battle sim:')
     print(sim_log.loc[sim_log['Player']==0][['Time', 'Player', 'Type', 'Potency', 'Multiplier', 'Crit Rate', "Full Damage"]][:60])
 
-    print(f"mean damage: {np.mean(dmg_list) / (fight_sim_duration - 3.5)}")  # subtracting 3.5 for the "prepull dance prep"
+    print(f"mean damage: {np.mean(dmg_list) / fight_sim_duration}")
 
     # End timer
     print("~~ Time: {} seconds".format(time.perf_counter() - start_time))
