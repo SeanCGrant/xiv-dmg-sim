@@ -46,17 +46,22 @@ class Actor(BaseActor):
 
         # BRD actions
         actions = {'Burst Shot': ActionDC('gcd', 220, self.gcd_time, self.gcd_time,
-                                          buff_effect={'self': [Chance('Straight Shot Ready', 0.35)]}),
+                                          buff_effect={'self': [Chance('Straight Shot Ready', 0.35)]},
+                                          buff_removal_opt=['Barrage']),
                    'Refulgent Arrow': ActionDC('gcd', 280, self.gcd_time, self.gcd_time,
-                                               buff_removal=['Straight Shot Ready']),
+                                               buff_removal=['Straight Shot Ready'],
+                                               buff_removal_opt=['Barrage']),
                    'Caustic Bite': ActionDC('gcd', 150, self.gcd_time, self.gcd_time,
                                             buff_effect={'self': [Chance('Straight Shot Ready', 0.35)]},
+                                            buff_removal_opt=['Barrage'],
                                             dot_effect='Caustic Bite'),
                    'Stormbite': ActionDC('gcd', 100, self.gcd_time, self.gcd_time,
                                          buff_effect={'self': [Chance('Straight Shot Ready', 0.35)]},
+                                         buff_removal_opt=['Barrage'],
                                          dot_effect='Stormbite'),
                    'Iron Jaws': ActionDC('gcd', 100, self.gcd_time, self.gcd_time,
                                          buff_effect={'self': [Chance('Straight Shot Ready', 0.35)]},
+                                         buff_removal_opt=['Barrage'],
                                          additional_effect=[self._iron_func]),
                    'Apex Arrow': ActionDC('gcd', self.scale_potency(100, 5, 'Soul Voice', resource_base=20), self.gcd_time, self.gcd_time,
                                           resource={'Soul Voice': Consume(20)},
@@ -198,6 +203,9 @@ class Actor(BaseActor):
                 action = 'Radiant Finale'
                 if self.allowed_action(action):
                     return self.initiate_action(action)
+            action = 'Barrage'
+            if self.allowed_action(action):
+                return self.initiate_action(action)
 
             # Use damage oGCDs
             action = 'Empyreal Arrow'
@@ -218,6 +226,20 @@ class Actor(BaseActor):
                     return self.initiate_action(action)
 
             return self.go_to_gcd()
+
+    def perform_action(self, action):
+        # Determine whether to send this hit multiple times (Barrage's effect)
+        barrage = ('Barrage' in self.actions[action].buff_removal_opt) & (self.buffs['Barrage'].active())
+
+        # Call the basic perform_action function
+        potency, (m, crit, dhit), buff_effect, action_type, multihit = BaseActor.perform_action(self, action)
+
+        # Barrage makes an ability hit three times
+        if barrage:
+            multihit = 3
+
+        # Return the values with the updated multihit
+        return potency, (m, crit, dhit), buff_effect, action_type, multihit
 
     def execute_actor_tick(self, rng=0.8):
         # Check if a song is up

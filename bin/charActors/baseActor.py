@@ -267,6 +267,9 @@ class BaseActor:
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
 
+        # Allow actors to upgrade to a multihit (BRD Barrage)
+        multihit = 1
+
         # Determine buff to send
         buff_effect = action.buff_effect
         # If this is a buff selector, then select a buff (or set of buffs)
@@ -294,7 +297,7 @@ class BaseActor:
         for resource, val in action.resource.items():
             self.add_resource(resource, val)
 
-        return potency, (m, crit, dhit), buff_effect, action.type
+        return potency, (m, crit, dhit), buff_effect, action.type, multihit
 
     def apply_buff(self, buff, *, giver_id=10):
         if buff is None:
@@ -416,7 +419,6 @@ class BaseActor:
     def scale_potency(self, base_pot, pot_inc, resource, resource_base=0):
         # Provide the base potency and the potency increment
         def pot_function():
-            print(self.resources[resource].amount)
             # Return the total potency based on the current amount of resource
             return base_pot + pot_inc * (self.resources[resource].amount - resource_base)
 

@@ -234,11 +234,13 @@ def sim_battle(fight_length, actor_list, verbose=False):
                 # update player's time
                 actor_list[player].update_time(time)
                 # execute action
-                event_pot, (event_M, event_crit, event_dhit), event_buffs, event_type =\
+                event_pot, (event_M, event_crit, event_dhit), event_buffs, event_type, multihit =\
                     actor_list[player].perform_action(action_name)
-                log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
-                if player in [0]:
-                    print(f"Performs: {action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
+                # Perform this action once for each multihit count
+                for _ in range(multihit):
+                    log_event(time, player, event_type, action_name, event_pot, event_crit, event_dhit, event_M, actor_list[player].resources, verbose)
+                    if player in [0]:
+                        print(f"Performs: {action_name} \t\t\t time: {time} \t\t\t resources: {actor_list[player].resources}")
 
                 # distribute any given resources
                 # Tech overrides Standard
