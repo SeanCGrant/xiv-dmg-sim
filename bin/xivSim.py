@@ -381,7 +381,7 @@ class JobCustom(QWidget):
         self.layout.addWidget(self.label)
 
         if job == 'DNC':
-            # Create a partner selector
+            # Create a partner selector_list
             # Label the radio button choice
             choice_label = QLabel('Choose which player to have Dance Partner:')
             self.layout.addWidget(choice_label)
@@ -391,6 +391,16 @@ class JobCustom(QWidget):
                 button = QRadioButton(str(i + 1))
                 self.choice.addWidget(button)
             self.layout.addLayout(self.choice)
+
+        if job in ['AST', 'SCH', 'SGE', 'WHM']:
+            # Create a piety input
+            piety_label = QLabel("Piety: ")
+            self.layout.addWidget(piety_label)
+            self.piety_input = QLineEdit()
+            validator = QIntValidator(0, 9999, self)
+            self.piety_input.setValidator(validator)
+            self.piety_input.setPlaceholderText("Provide Stat Value")
+            self.layout.addWidget(self.piety_input)
 
         if job == 'SAM':
             pass
@@ -407,6 +417,11 @@ class JobCustom(QWidget):
             # If not found, tell the user that a partner is necessary
             print('Warning: No dance partner selected. Defaulting to player 2!!')
             return {'partner': 1}
+
+        if self.job == 'SGE':
+            # Return the piety value
+            piety_val = self.piety_input.text()
+            return {'piety': int(piety_val)}
 
         return {}
 
@@ -459,7 +474,7 @@ class RotationSelection(QWidget):
 
 
 class LabeledDrop(QWidget):
-    # A Widget that contains a label and dropdown selector
+    # A Widget that contains a label and dropdown selector_list
     def __init__(self, n, window):
         super().__init__()
         # Keep track of an id, to link this particular widget to a particular stat page
@@ -473,7 +488,7 @@ class LabeledDrop(QWidget):
         self.label = QLabel(f"Player {n+1}:")
         self.label.setAutoFillBackground(True)
 
-        # Create the dropdown selector
+        # Create the dropdown selector_list
         self.drop_box = QComboBox()
         self.drop_box.addItems(['Job', 'AST', 'BLM', 'DRK', 'DRG', 'DNC', 'PLD', 'SAM', 'SGE', 'WHM'])
         # Connect this dropdown to actions
@@ -484,7 +499,7 @@ class LabeledDrop(QWidget):
         self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(2).widget().change_color)
         # And change the contents of the job-specific section on job selection too
         self.drop_box.currentTextChanged.connect(window.stat_pages[self.id].layout().itemAt(1).widget().reset)
-        # Bring the associated stat-page to the foreground when this selector is interacted with
+        # Bring the associated stat-page to the foreground when this selector_list is interacted with
         self.drop_box.currentTextChanged.connect(self.make_focus)
 
         # Arrange the label and dropdown
@@ -515,7 +530,7 @@ class LabeledDrop(QWidget):
         self.window.change_frame(self.id)
 
     def mouseReleaseEvent(self, *args, **kwargs):
-        # Bring the "tab" into focus (by showing its color) when a particular job selector tab is clicked on
+        # Bring the "tab" into focus (by showing its color) when a particular job selector_list tab is clicked on
         self.change_color(self.drop_box.currentText())
         # And bring the associated stat-page to the foreground
         self.window.change_frame(self.id)

@@ -31,6 +31,7 @@ class BaseActor:
         self.action_counter = 0  # action tracker for provided list
         self.next_auto = 0.0
         self.auto_potency = 1  # each job should update appropriately
+        self.next_tick = 0.0
         self.dots = {}
         # will track all buffs, universal external buffs listed here, personal buffs added within each job
         # TO-DO: add all targeted buffs here too
@@ -50,12 +51,14 @@ class BaseActor:
                       'Radiant Finale 3': BuffDC('dmg', 15.0, 1.06),
                       'Battle Voice': BuffDC('dhit', 15.0, 0.2),
                       'Divination': BuffDC('dmg', 15.0, 1.06),
+                      'AST Card': BuffDC('dmg', 15.0, 1.06),
                       'BattleLitany': BuffDC('crit', 15.0, 0.1),
                       'Brotherhood': BuffDC('dmg', 15.0, 1.05),
                       'Meditative Brotherhood': TargetedBuff('given', 15.0,
                                                              gift={'name': 'chakra', 'value': 1, 'rng': 0.2})}
         self.tracked_buffs = ['TechEsprit', 'StandardEsprit', 'Meditative Brotherhood']
         self.buff_tracked = False
+        self.stickers = {}  # Used for binary resources (either you have them or you don't)
         self.resources = {}
         self.actions = {}
         self.last_time_check = 0.0  # the last time this player had their timers updated
@@ -89,6 +92,13 @@ class BaseActor:
     def go_to_gcd(self):
         # jump to the next gcd
         self.next_event = self.next_gcd
+
+        return None, 0.0
+
+    def go_to_tick(self):
+        # jump to right after the next actor tick (let the tick happen before reacting to it)
+        self.next_event = round(self.next_tick + 0.01, 3)
+        self.next_gcd = self.next_event
 
         return None, 0.0
 
@@ -146,7 +156,8 @@ class BaseActor:
         return True
 
     def execute_actor_tick(self):
-        pass
+        # update tick tracker
+        self.next_tick = self.last_time_check + 3.0
 
     def allowed_action(self, action_name):
         action = self.actions[action_name]
@@ -154,13 +165,16 @@ class BaseActor:
         # Check the charges
         if action.charge_count < 1:
             return False
+
         # check the cooldown (REMOVE?)
         if action.cooldown > 0.0:
             return False
+
         # Check for disallowed buffs
         for buff in action.disallowed_buff:
             if self.buffs[buff].active():
                 return False
+
         # check for required buffs, procs, etc.
         for proc in action.buff_removal + action.required_buff:
             if isinstance(proc, list):
@@ -176,6 +190,12 @@ class BaseActor:
             else:
                 if not self.buffs[proc].active():
                     return False
+
+        # Check for necessary stickers
+        for sticker in action.sticker_removal:
+            if not self.stickers[sticker]:
+                return False
+
         # check for necessary resources
         for resource, val in action.resource.items():
             if isinstance(val, Chance):
@@ -187,6 +207,7 @@ class BaseActor:
             # If resources are being used, make sure there is enough
             if (val < 0) & (self.resources[resource].amount < val * -1):
                 return False
+
         return True
 
     def initiate_action(self, action_name):
@@ -231,7 +252,7 @@ class BaseActor:
         # find next open event slot (and check for a predefined later "next_event")
         self.next_event = round(max(min(self.next_gcd, self.next_ogcd), self.next_event), 3)
 
-        return action_name, action.cast_time * spd_mod
+        return action_name, action.cast_time * spd_mod + action.delay_on_perform
 
     def perform_action(self, action):
         action = self.actions[action]
@@ -272,7 +293,7 @@ class BaseActor:
 
         # Determine buff to send
         buff_effect = action.buff_effect
-        # If this is a buff selector, then select a buff (or set of buffs)
+        # If this is a buff selector_list, then select a buff (or set of buffs)
         if isinstance(action.buff_effect, BuffSelector):
             buff_effect = buff_effect.select()
 
@@ -296,6 +317,14 @@ class BaseActor:
         # generate any resources
         for resource, val in action.resource.items():
             self.add_resource(resource, val)
+
+        # Update stickers
+        # Remove any stickers
+        for sticker in action.sticker_removal + action.sticker_removal_opt:
+            self.remove_sticker(sticker)
+        # Gain any stickers
+        for sticker in action.sticker_gain:
+            self.add_sticker(sticker)
 
         return potency, (m, crit, dhit), buff_effect, action.type, multihit
 
@@ -369,6 +398,19 @@ class BaseActor:
         self.dots[dot_name].timer = self.dots[dot_name].duration
         # take a snapshot of current buffs
         self.dots[dot_name].buff_snap = self.buff_state()
+
+    def add_sticker(self, name):
+        # Check if this is an rng sticker
+        if isinstance(name, Chance):
+            # Roll the dice
+            if np.random.rand() < name.probability:
+                # Give the resource on success
+                self.add_sticker(name.val)
+        else:
+            self.stickers[name] = True
+
+    def remove_sticker(self, name):
+        self.stickers[name] = False
 
     def add_resource(self, name, val):
         # Check if this is an rng resource
@@ -561,15 +603,15 @@ class BuffSelector:
 
     actor: BaseActor
     buff_selection: list  # Potential buffs to send
-    selector: list  # The object(s) that affect which buff to choose
-    mode: str = 'count'  # 'count', 'sticker', or 'type'
+    selector_list: list  # The object(s) that affect which buff to choose
+    mode: str = 'count'  # 'count', 'sticker count', or 'type'
 
     def select(self):
-        if self.mode == 'sticker':
+        if self.mode == 'sticker count':
             # count how many of the stickers are present
             count = 0
-            for sticker in self.selector:
-                if self.actor.resources[sticker].amount == 1:
+            for sticker in self.selector_list:
+                if self.actor.stickers[sticker]:
                     count += 1
 
             # Send no buffs back if no stickers
@@ -579,10 +621,21 @@ class BuffSelector:
             return self.buff_selection[count - 1]
 
         if self.mode == 'type':
-            # Choose the list item that corresponds with the first buff present in the list
-            for i, buff in enumerate(self.selector):
-                if self.actor.buffs[buff].timer > 0.0:
-                    return self.buff_selection[i]
+            # Choose the list item that corresponds with the first selector present in the list
+            for i, selector in enumerate(self.selector_list):
+                # Check if the selector is a buff
+                if selector in self.actor.buffs.keys():
+                    # and if it is active
+                    if self.actor.buffs[selector].active():
+                        return self.buff_selection[i]
+                # Check if the selector is a sticker
+                elif selector in self.actor.stickers.keys():
+                    # and if it is present
+                    if self.actor.stickers[selector]:
+                        return self.buff_selection[i]
+                else:
+                    print(f"Warning: {selector} is not a valid selector")
+                    return {}
             # If none of the conditional buffs are present
             # Check if an extra item exists in the buff_selection list
             if len(self.buff_selection) == i+2:
@@ -594,7 +647,7 @@ class BuffSelector:
 
         if self.mode == 'count':
             # Choose the list item based on the count of the provided resource
-            return self.buff_selection[self.actor.resources[self.selector[0]].amount]
+            return self.buff_selection[self.actor.resources[self.selector_list[0]].amount]
 
         else:
             # no valid mode provided -- send back no buffs
@@ -645,6 +698,7 @@ class ActionDC:
     charge_time: float = 0.0  # How long it takes to generate a charge
     charge_cd: float = 0.0  # The dynamic recharge cooldown
     anim_lock: float = 0.65
+    delay_on_perform: float = 0.0  # How long after the cast has ended does the action get performed
     autocrit: bool | BuffConditional = False
     autodhit: bool | BuffConditional = False
     spd_adjusted: bool = True
@@ -657,6 +711,11 @@ class ActionDC:
     required_buff: list = field(default_factory=list)
     # Disallowed buffs -- buffs that prevent an action from being used
     disallowed_buff: list = field(default_factory=list)
+    sticker_gain: list = field(default_factory=list)
+    # Stickers that are required, and will be removed
+    sticker_removal: list = field(default_factory=list)
+    # Stickers that will be removed, but aren't necessarily required
+    sticker_removal_opt: list = field(default_factory=list)
     dot_effect: str = 'none'  # 'none', '*dot name*'
     resource: dict = field(default_factory=dict)  # (['none', '*resource name*], [value])
     # an additional parameter to include a list of function calls when an action is used, to provide flexibility
@@ -727,7 +786,13 @@ def spd_from_stat(spd, base_gcd):
     return gcd
 
 
+# convert Piety to mp gain
+def piety_to_mp(piety):
+    lvlMod_main = 390
+    lvlMod_div = 1900
 
+    mp_gain = (150 * (piety - lvlMod_main) / lvlMod_div) // 1
+    return mp_gain
 
 
 

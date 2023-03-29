@@ -21,8 +21,11 @@ class Actor(BaseActor):
         # and adjust for 2.0s GCD
         self.gcd_time = spd_from_stat(spd, 2000) + 0.005  # [fps estimate included]
 
+        # Stickers
+        self.stickers = {'Lunar Nadi': False, 'Solar Nadi': False}
+
         # mnk specific resources
-        self.resources = {'chakra': ResourceDC(5, 5), 'Lunar Nadi': ResourceDC(1), 'Solar Nadi': ResourceDC(1)}
+        self.resources = {'chakra': ResourceDC(5, 5)}
 
         # mnk personal buffs
         buffs = {'Riddle of Fire': BuffDC('dmg', 20.0, 1.15), 'Disciplined Fist': BuffDC('dmg', 15.0, 1.15),
@@ -45,7 +48,8 @@ class Actor(BaseActor):
                                          buff_effect=BuffSelector(self, [{'self': ['Beast-Oppo-oppo']}, {'self': ['Beast-Oppo-oppo']}, {'self': ['Beast-Oppo-oppo', 'Blitz']}, {'self': ['Raptor']}, {'self': ['Raptor']}, {'self': ['Raptor']}],
                                                                   ['Perfect Balance 3', 'Perfect Balance 2', 'Perfect Balance 1', 'Oppo-oppo', 'Formless Fist'], mode='type'),
                                          buff_removal_opt=[['Perfect Balance 3', 'Perfect Balance 2', 'Perfect Balance 1'], 'Oppo-oppo', 'Formless Fist', 'Leaden Fist'],
-                                         autocrit=BuffConditional(self, ['Perfect Balance 3', 'Perfect Balance 2', 'Perfect Balance 1', 'Oppo-oppo', 'Formless Fist'])),
+                                         autocrit=BuffConditional(self, ['Perfect Balance 3', 'Perfect Balance 2', 'Perfect Balance 1', 'Oppo-oppo', 'Formless Fist']),
+                                         resource={'chakra': 1}),
                    'Dragon Kick': ActionDC('gcd', 320, self.gcd_time, self.gcd_time,
                                            buff_effect=BuffSelector(self, [{'self': ['Beast-Oppo-oppo', 'Leaden Fist']}, {'self': ['Beast-Oppo-oppo', 'Leaden Fist']}, {'self': ['Beast-Oppo-oppo', 'Blitz', 'Leaden Fist']}, {'self': ['Raptor', 'Leaden Fist']}, {'self': ['Raptor', 'Leaden Fist']}, {'self': ['Raptor']}],
                                                                   ['Perfect Balance 3', 'Perfect Balance 2', 'Perfect Balance 1', 'Oppo-oppo', 'Formless Fist'], mode='type'),
@@ -77,19 +81,19 @@ class Actor(BaseActor):
                                             buff_removal=['Blitz'],
                                             buff_removal_opt=['Oppo-oppo', 'Raptor', 'Coeurl', 'Beast-Oppo-oppo',
                                                               'Beast-Raptor', 'Beast-Coeurl'],
-                                            resource={'Lunar Nadi': 1}),
+                                            sticker_gain=['Lunar Nadi']),
                    'Rising Phoenix': ActionDC('gcd', 700, self.gcd_time, self.gcd_time,
                                               buff_effect={'self': ['Formless Fist']},
                                               buff_removal=['Blitz'],
                                               buff_removal_opt=['Oppo-oppo', 'Raptor', 'Coeurl', 'Beast-Oppo-oppo',
                                                                 'Beast-Raptor', 'Beast-Coeurl'],
-                                              resource={'Solar Nadi': 1}),
+                                              sticker_gain=['Solar Nadi']),
                    'Phantom Rush': ActionDC('gcd', 1150, self.gcd_time, self.gcd_time,
                                             buff_effect={'self': ['Formless Fist']},
                                             buff_removal=['Blitz'],
                                             buff_removal_opt=['Oppo-oppo', 'Raptor', 'Coeurl', 'Beast-Oppo-oppo',
                                                               'Beast-Raptor', 'Beast-Coeurl'],
-                                            resource={'Lunar Nadi': -1, 'Solar Nadi': -1}),
+                                            sticker_removal=['Lunar Nadi', 'Solar Nadi']),
                    'The Forbidden Chakra': ActionDC('ogcd', 340, 1.0,
                                                     resource={'chakra': -5}),
                    'Meditation': ActionDC('ogcd', 0, 1.0,
@@ -163,7 +167,7 @@ class Actor(BaseActor):
                     return self.initiate_action('Elixir Field')
 
             # Basic GCD Rotation
-            if self.buffs['Oppo-oppo'].timer > 0.0:
+            if self.buffs['Oppo-oppo'].active():
                 if self.buffs['Leaden Fist'].timer > 0.0:
                     action = 'Bootshine'
                     if self.allowed_action(action):
@@ -172,7 +176,7 @@ class Actor(BaseActor):
                     action = 'Dragon Kick'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
-            if self.buffs['Raptor'].timer > 0.0:
+            if self.buffs['Raptor'].active():
                 if self.buffs['Disciplined Fist'].timer > 4.0:
                     action = 'True Strike'
                     if self.allowed_action(action):
@@ -181,7 +185,7 @@ class Actor(BaseActor):
                     action = 'Twin Snakes'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
-            if self.buffs['Coeurl'].timer > 0.0:
+            if self.buffs['Coeurl'].active():
                 if self.dots['Demolish'].timer <= 2.0:
                     action = 'Demolish'
                     if self.allowed_action(action):
@@ -192,8 +196,8 @@ class Actor(BaseActor):
                         return self.initiate_action(action)
 
             # Formless Fist
-            if self.buffs['Formless Fist'].timer > 0.0:
-                if self.buffs['Leaden Fist'].timer <= 0.0:
+            if self.buffs['Formless Fist'].active():
+                if self.buffs['Leaden Fist'].active():
                     action = 'Dragon Kick'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
@@ -203,11 +207,11 @@ class Actor(BaseActor):
                         return self.initiate_action(action)
 
             # Perfect Balance Stacks
-            if self.buffs['Perfect Balance 1'].timer > 0.0:
-                if self.resources['Solar Nadi'].amount < 1:
+            if self.buffs['Perfect Balance 1'].active():
+                if not self.stickers['Solar Nadi']:
                     # Just do normal rotation (not optimal, just a placeholder)
-                    if self.buffs['Perfect Balance 3'].timer > 0.0:
-                        if self.buffs['Leaden Fist'].timer > 0.0:
+                    if self.buffs['Perfect Balance 3'].active():
+                        if self.buffs['Leaden Fist'].active():
                             action = 'Bootshine'
                             if self.allowed_action(action):
                                 return self.initiate_action(action)
@@ -215,7 +219,7 @@ class Actor(BaseActor):
                             action = 'Dragon Kick'
                             if self.allowed_action(action):
                                 return self.initiate_action(action)
-                    if self.buffs['Perfect Balance 2'].timer > 0.0:
+                    if self.buffs['Perfect Balance 2'].active():
                         if self.buffs['Disciplined Fist'].timer > 4.0:
                             action = 'True Strike'
                             if self.allowed_action(action):
@@ -234,7 +238,7 @@ class Actor(BaseActor):
                             if self.allowed_action(action):
                                 return self.initiate_action(action)
                 else:
-                    if self.buffs['Leaden Fist'].timer > 0.0:
+                    if self.buffs['Leaden Fist'].active():
                         action = 'Bootshine'
                         if self.allowed_action(action):
                             return self.initiate_action(action)

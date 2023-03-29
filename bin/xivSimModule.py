@@ -105,6 +105,11 @@ class XIVSimThread(QThread):
             # Add Actor to the list
             actor_list.append(actor)
 
+        if not actor_list:
+            # Return a 0 result for no jobs given
+            self.result.emit([0, 0, 0])
+            return
+
         '''player0 = dnc.Actor(126, 2949, 1721, 536, 2387, 1340, 3.12, player_id=0, partner=1)
         player1 = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1)
         player2 = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)

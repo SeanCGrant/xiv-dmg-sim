@@ -26,9 +26,11 @@ class Actor(BaseActor):
         # override auto potency
         self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
 
+        # Stickers
+        self.stickers = {'Mages Coda': False, 'Wanderers Coda': False, 'Armys Coda': False}
+
         # BRD specific resources
-        self.resources = {'Mages Coda': ResourceDC(1), 'Wanderers Coda': ResourceDC(1), 'Armys Coda': ResourceDC(1),
-                          'Pitch Perfect': ResourceDC(3), 'Repertoire-Armys': ResourceDC(4),
+        self.resources = {'Pitch Perfect': ResourceDC(3), 'Repertoire-Armys': ResourceDC(4),
                           'Soul Voice': ResourceDC(100)}
 
         # BRD personal buffs
@@ -75,7 +77,7 @@ class Actor(BaseActor):
                                               additional_effect=[self._empyreal_func]),
                    'Sidewinder': ActionDC('ogcd', 300, 60.0),
                    'Mages Ballad': ActionDC('ogcd', 100, 120.0,
-                                            resource={'Mages Coda': 1},
+                                            sticker_gain=['Mages Coda'],
                                             buff_effect=BuffSelector(self, [{'team': ['Mages Ballad'], 'self':['Armys Muse 4']}, {'team': ['Mages Ballad'], 'self':['Armys Muse 4']},
                                                                             {'team': ['Mages Ballad'], 'self':['Armys Muse 3']}, {'team': ['Mages Ballad'], 'self':['Armys Muse 3']},
                                                                             {'team': ['Mages Ballad'], 'self':['Armys Muse 2']}, {'team': ['Mages Ballad'], 'self':['Armys Muse 3']},
@@ -84,7 +86,7 @@ class Actor(BaseActor):
                                                                      ['Armys Ethos 4', 'Armys Haste 4', 'Armys Ethos 3', 'Armys Haste 3', 'Armys Ethos 2', 'Armys Haste 2', 'Armys Ethos 1', 'Armys Haste 1'],
                                                                      mode='type')),
                    'Wanderers Minuet': ActionDC('ogcd', 100, 120.0,
-                                                resource={'Wanderers Coda': 1},
+                                                sticker_gain=['Wanderers Coda'],
                                                 buff_effect=BuffSelector(self,
                                                                          [{'team': ['Wanderers Minuet'], 'self':['Armys Muse 4']}, {'team': ['Mages Ballad'], 'self':['Armys Muse 4']},
                                                                           {'team': ['Wanderers Minuet'], 'self':['Armys Muse 3']}, {'team': ['Mages Ballad'], 'self':['Armys Muse 3']},
@@ -96,7 +98,7 @@ class Actor(BaseActor):
                                                                           'Armys Ethos 1', 'Armys Haste 1'],
                                                                          mode='type')),
                    'Armys Paeon': ActionDC('ogcd', 100, 120.0,
-                                           resource={'Armys Coda': 1},
+                                           sticker_gain=['Armys Coda'],
                                            buff_effect={'team': ['Armys Paeon'], 'self': ['Armys Song']}),
                    'Pitch Perfect': ActionDC('ogcd', self.step_potency([0, 100, 220, 360], resource='Pitch Perfect'), 1.0,
                                              resource={'Pitch Perfect': Consume(1)}),
@@ -109,8 +111,8 @@ class Actor(BaseActor):
                    'Radiant Finale': ActionDC('ogcd', 0, 110.0,
                                               buff_effect=BuffSelector(self, [{'team': ['Radiant Finale 1']}, {'team': ['Radiant Finale 2']}, {'team': ['Radiant Finale 3']}],
                                                                        ['Mages Coda', 'Wanderers Coda', 'Armys Coda'],
-                                                                       mode='sticker'),
-                                              resource={'Mages Coda': Consume(0), 'Wanderers Coda': Consume(0), 'Armys Coda': Consume(0)})
+                                                                       mode='sticker count'),
+                                              sticker_removal_opt=['Mages Coda', 'Wanderers Coda', 'Armys Coda'])
                    }
         self.actions.update(actions)
 
@@ -177,15 +179,15 @@ class Actor(BaseActor):
             # If not singing already
             if not (self.buffs['Wanderers Minuet'].active() | self.buffs['Armys Paeon'].active() |
                     self.buffs['Mages Ballad'].active()):
-                if self.resources['Wanderers Coda'].amount == 0:
+                if not self.stickers['Wanderers Coda']:
                     action = 'Wanderers Minuet'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
-                if self.resources['Armys Coda'].amount == 0:
+                if not self.stickers['Armys Coda']:
                     action = 'Armys Paeon'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
-                if self.resources['Mages Coda'].amount == 0:
+                if not self.stickers['Mages Coda']:
                     action = 'Mages Ballad'
                     if self.allowed_action(action):
                         return self.initiate_action(action)
@@ -198,8 +200,7 @@ class Actor(BaseActor):
             if self.allowed_action(action):
                 return self.initiate_action(action)
             # Radiant Finale at 3 stacks
-            if (self.resources['Mages Coda'].amount == 1) & (self.resources['Armys Coda'].amount == 1) &\
-                    (self.resources['Wanderers Coda'].amount == 1):
+            if (self.stickers['Mages Coda']) & (self.stickers['Armys Coda']) & (self.stickers['Wanderers Coda']):
                 action = 'Radiant Finale'
                 if self.allowed_action(action):
                     return self.initiate_action(action)
@@ -242,6 +243,9 @@ class Actor(BaseActor):
         return potency, (m, crit, dhit), buff_effect, action_type, multihit
 
     def execute_actor_tick(self, rng=0.8):
+        # Execute the base function
+        BaseActor.execute_actor_tick(self)
+
         # Check if a song is up
         if (self.buffs['Wanderers Minuet'].active() | self.buffs['Armys Paeon'].active() |
                 self.buffs['Mages Ballad'].active()):
