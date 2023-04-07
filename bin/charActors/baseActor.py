@@ -43,7 +43,7 @@ class BaseActor:
                                                      gift={'name': 'esprit', 'value': 10, 'rng': 0.2}),
                       'Devilment_crit': BuffDC('crit', 20.0, 0.2),
                       'Devilment_dhit': BuffDC('dhit', 20.0, 0.2),
-                      'Mages Ballad': BuffDC('dmg', 45.0, 1.05),
+                      'Mages Ballad': BuffDC('dmg', 45.0, 1.01),
                       'Wanderers Minuet': BuffDC('crit', 45.0, 0.02),
                       'Armys Paeon': BuffDC('dhit', 45.0, 0.03),
                       'Radiant Finale 1': BuffDC('dmg', 15.0, 1.02),
@@ -52,11 +52,14 @@ class BaseActor:
                       'Battle Voice': BuffDC('dhit', 15.0, 0.2),
                       'Divination': BuffDC('dmg', 15.0, 1.06),
                       'AST Card': BuffDC('dmg', 15.0, 1.06),
+                      'Arcane Circle': BuffDC('dmg', 20.0, 1.03),
+                      'Circle of Sacrifice': TargetedBuff('given', 5.0,
+                                                          gift={'name': 'Immortal Sacrifice', 'value': 1, 'rng': 1.0}),
                       'BattleLitany': BuffDC('crit', 15.0, 0.1),
                       'Brotherhood': BuffDC('dmg', 15.0, 1.05),
                       'Meditative Brotherhood': TargetedBuff('given', 15.0,
                                                              gift={'name': 'chakra', 'value': 1, 'rng': 0.2})}
-        self.tracked_buffs = ['TechEsprit', 'StandardEsprit', 'Meditative Brotherhood']
+        self.tracked_buffs = ['TechEsprit', 'StandardEsprit', 'Meditative Brotherhood', 'Circle of Sacrifice']
         self.buff_tracked = False
         self.stickers = {}  # Used for binary resources (either you have them or you don't)
         self.resources = {}
@@ -267,6 +270,7 @@ class BaseActor:
         if callable(potency):
             potency = potency()
         m, crit, dhit = self.buff_state()
+
         # Check for auto-crit
         if isinstance(action.autocrit, BuffConditional):
             autocrit = action.autocrit.check()
@@ -287,6 +291,12 @@ class BaseActor:
             dhit = 1.0
             # Patch 6.2: Apply a dmg bonus for dhit rate buffs
             m *= 1 + ((self.dhit_rate - self.base_dhit) * 0.25)
+
+        # Check for anti-crit/dhit
+        if action.anticrit:
+            crit = 0.0
+        if action.antidhit:
+            dhit = 0.0
 
         # Allow actors to upgrade to a multihit (BRD Barrage)
         multihit = 1
@@ -358,8 +368,12 @@ class BaseActor:
             if self.buffs[buff].type == 'given':
                 self.buffs[buff].buff_giver = giver_id
 
-            # apply the buff at full duration
-            self.buffs[buff].timer = self.buffs[buff].duration
+            # extend the buff, or apply the buff at full duration
+            if self.buffs[buff].extendable:
+                self.buffs[buff].timer = round(min(self.buffs[buff].timer + self.buffs[buff].duration,
+                                                   self.buffs[buff].max_time), 3)
+            else:
+                self.buffs[buff].timer = self.buffs[buff].duration
 
     def remove_buff(self, buff):
         if buff is None:
@@ -568,6 +582,8 @@ class BuffDC:
     value: float = 0.0  # e.g. 1.05 for a 5% dmg buff
     delay: float = 0.2  # TO-DO: this is a random guess at typical buff propagation delay
     timer: float = 0.0  # the remaining time on the buff
+    extendable: bool = False  # Can the buff be extended, as opposed to just refreshed
+    max_time: float = 120.0  # The maximum time it can be extended to
     # A list of functions to be executed when the buff is removed, to allow flexibility
     removal_additions: list = field(default_factory=list)
 
@@ -701,6 +717,8 @@ class ActionDC:
     delay_on_perform: float = 0.0  # How long after the cast has ended does the action get performed
     autocrit: bool | BuffConditional = False
     autodhit: bool | BuffConditional = False
+    anticrit: bool = False
+    antidhit: bool = False
     spd_adjusted: bool = True
     buff_effect: dict | BuffSelector = field(default_factory=dict)  # (['self', 'team', 'target']: ['*buff names*'])
     # Used for most things -- buffs that are required and removed

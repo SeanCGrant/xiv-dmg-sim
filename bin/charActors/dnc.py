@@ -16,7 +16,7 @@ class Actor(BaseActor):
         super().__init__(jobMod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, player_id=player_id, **kwargs)
 
         # override auto potency
-        self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
+        self.auto_potency = 90  # TO-DO: check this value
 
         # dnc specific resources
         self.resources = {'esprit': ResourceDC(100), 'feathers': ResourceDC(4)}

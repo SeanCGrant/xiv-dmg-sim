@@ -1,7 +1,7 @@
 # A damage simulator for Final Fantasy XIV teams
 
 from simFunctions import sim_battle, damage_iteration, plot_hist
-from charActors import ast, blm, brd, drk, drg, dnc, mnk, pld, sam, sge, whm
+from charActors import ast, blm, brd, drk, drg, dnc, mch, mnk, pld, rpr, sam, sge, whm
 import time
 import numpy as np
 
@@ -10,11 +10,12 @@ if __name__ == '__main__':
     start_time = time.perf_counter()
 
     # create character actors (by hand for now)
-    player0 = brd.Actor(126, 2949, 1721, 536, 2387, 1340, 3.12, player_id=0)
-    player1 = sam.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1)
+    # 126, 2949, 1721, 536, 2387, 1340, 3.12
+    player0 = rpr.Actor(126, 3093, 1721, 536, 2387, 1376, 2.56, player_id=0)
+    player1 = brd.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=1)
     player2 = drg.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=2)
     player3 = blm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=3)
-    player4 = ast.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=4)
+    player4 = sge.Actor(50, 2560, 1987, 650, 2000, 2000, 3.14, player_id=4)
     player5 = whm.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=5)
     player6 = drk.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=6)
     player7 = pld.Actor(50, 2560, 1987, 510, 2000, 2000, 3.14, player_id=7)
@@ -37,15 +38,15 @@ if __name__ == '__main__':
             # roll one damage iteration
             damage_iteration(actor_list, sim_log)
 
-            # add to damage list
-            dmg_list.append(sim_log['Full Damage'].sum())
+            # add to damage list (first player only)
+            dmg_list.append(sim_log.loc[sim_log['Player']==0]['Full Damage'].sum())
 
         print('############### Battle Iteration {} Done ###############'.format(i+1))
 
     print('First 20 rows of last battle sim:')
-    print(sim_log.loc[sim_log['Player']==0][['Time', 'Player', 'Type', 'Potency', 'Multiplier', 'Crit Rate', "Full Damage"]][:60])
+    print(sim_log.loc[(sim_log['Player']==0) & (sim_log['Type']=='gcd')][['Time', 'Player', 'Type', 'Potency', 'Multiplier', 'Dhit Rate', 'Crit Rate', "Full Damage"]][:60])
 
-    print(f"mean damage: {np.mean(dmg_list) / fight_sim_duration}")
+    print(f"mean damage: {1.05 * np.mean(dmg_list) / fight_sim_duration}")  # added party bonus
 
     # End timer
     print("~~ Time: {} seconds".format(time.perf_counter() - start_time))

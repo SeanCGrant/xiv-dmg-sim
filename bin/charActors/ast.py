@@ -19,7 +19,7 @@ class Actor(BaseActor):
         self.mp_tick = 200 + piety_to_mp(piety)
 
         # override auto potency
-        self.auto_potency = 1 * (self.wpn_delay / 3.0)  # TO-DO: check this value
+        self.auto_potency = 1  # TO-DO: check this value
 
         # Create a priority list for giving out AST cards
         self.card_priority = {'Melee': [1, 2, 6], 'Ranged': [3, 4, 5]}

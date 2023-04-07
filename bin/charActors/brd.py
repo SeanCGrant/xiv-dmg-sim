@@ -277,7 +277,7 @@ class Actor(BaseActor):
                 # Give a stack of haste
                 self.add_resource('Repertoire-Armys', 1)
                 # Add new haste buff
-                print(f"give haste: {self._armys_selector.select()}")
+                #print(f"give haste: {self._armys_selector.select()}")
                 self.apply_buff(self._armys_selector.select())
 
     def _iron_func(self):

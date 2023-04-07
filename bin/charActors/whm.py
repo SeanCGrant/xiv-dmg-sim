@@ -19,7 +19,7 @@ class Actor(BaseActor):
         self.mp_tick = 200 + piety_to_mp(piety)
 
         # override auto potency
-        self.auto_potency = 1 * (self.wpn_delay / 3.0)  # TO-DO: check this value
+        self.auto_potency = 1  # TO-DO: check this value
 
         # whm specific resources
         self.resources = {'Lily': TimedResourceDC(3, amount=0, charge_time=20.0), 'Blood Lily': ResourceDC(3),

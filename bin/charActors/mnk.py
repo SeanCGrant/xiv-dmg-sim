@@ -17,7 +17,10 @@ class Actor(BaseActor):
         super().__init__(jobMod, trait, wd, ap, det, spd, crit, dhit, wpn_delay, player_id=player_id, **kwargs)
 
         # override auto potency
-        self.auto_potency = 90 * (self.wpn_delay / 3.0)  # TO-DO: check this value
+        self.auto_potency = 90  # TO-DO: check this value
+        # Greased Lightning boost
+        self.auto_spd_mod = 0.8
+
         # and adjust for 2.0s GCD
         self.gcd_time = spd_from_stat(spd, 2000) + 0.005  # [fps estimate included]
 

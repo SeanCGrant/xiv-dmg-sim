@@ -20,7 +20,7 @@ class Actor(BaseActor):
         self.mp_tick = 200 + piety_to_mp(piety)
 
         # override auto potency
-        self.auto_potency = 1 * (self.wpn_delay / 3.0)  # TO-DO: check this value
+        self.auto_potency = 1  # TO-DO: check this value
 
         # job specific resources
         self.resources = {'addersgal': TimedResourceDC(3, charge_time=20.0), 'addersting': ResourceDC(3),
