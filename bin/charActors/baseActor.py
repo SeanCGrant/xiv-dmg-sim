@@ -25,6 +25,8 @@ class BaseActor:
         self.anim_lock = anim_lock
         self.spd_mod = 1.0
         self.auto_spd_mod = 1.0
+        self.instant_casting = False
+        self.instant_count = 0
         self.next_gcd = -60.0
         self.next_ogcd = -60.0
         self.next_event = -60.0
@@ -238,11 +240,21 @@ class BaseActor:
         # put the action on cooldown
         action.cooldown = action.recast * spd_mod
 
+        # Determine cast time
+        cast_time = action.cast_time
+        # Check if the action's cast can be adjusted
+        if not action.static_cast_time:
+            # Apply any haste
+            cast_time = cast_time * spd_mod
+            # Check for instant casts
+            if self.instant_casting:
+                cast_time = 0
+
         if action.type == 'gcd':
             # roll GCD (and check for a predefined later "next_gcd")
             self.next_gcd = round(max(self.last_time_check + action.gcd_lock * spd_mod, self.next_gcd), 3)
             # and animation-lock to next oGCD slot (and check for predefined later "next_ogcd")
-            self.next_ogcd = round(max(self.last_time_check + (action.cast_time * spd_mod) + action.anim_lock,
+            self.next_ogcd = round(max(self.last_time_check + cast_time + action.anim_lock,
                                        self.next_ogcd), 3)
 
         if action.type == 'ogcd':
@@ -255,7 +267,7 @@ class BaseActor:
         # find next open event slot (and check for a predefined later "next_event")
         self.next_event = round(max(min(self.next_gcd, self.next_ogcd), self.next_event), 3)
 
-        return action_name, action.cast_time * spd_mod + action.delay_on_perform
+        return action_name, cast_time + action.delay_on_perform
 
     def perform_action(self, action):
         action = self.actions[action]
@@ -360,6 +372,11 @@ class BaseActor:
                         self.spd_mod *= (1 - self.buffs[buff].value)
                     case 'auto-spd':
                         self.auto_spd_mod *= (1 - self.buffs[buff].value)
+                    case 'instant-cast':
+                        # Grant instant casting status
+                        self.instant_casting = True
+                        # Update the count (in case there are multiple instant cast buffs present)
+                        self.instant_count += 1
                     case 'given':
                         # make sure the player is flagged as having a tracked buff
                         self.buff_tracked = True
@@ -391,6 +408,12 @@ class BaseActor:
                 self.spd_mod /= (1 - self.buffs[buff].value)
             case 'auto-spd':
                 self.auto_spd_mod /= (1 - self.buffs[buff].value)
+            case 'instant-cast':
+                # Take away one count of instant casting
+                self.instant_count -= 1
+                # If there are no instant cast buffs left, then remove instant casting status
+                if self.instant_count <= 0:
+                    self.instant_casting = False
             case 'given':
                 # remove the tracked flag...
                 self.buff_tracked = False
@@ -709,6 +732,7 @@ class ActionDC:
     gcd_lock: float = 0
     cooldown: float = 0  # The dynamic recast cooldown
     cast_time: float = 0  # This should be the in-game "cast time" minus 0.5s for the snapshot point
+    static_cast_time: bool = False  # This should be used if the cast time is unaffected by haste or instant casts
     max_charges: int = 1
     charge_count: int = -1
     charge_time: float = 0.0  # How long it takes to generate a charge

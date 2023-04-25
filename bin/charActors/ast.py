@@ -39,7 +39,7 @@ class Actor(BaseActor):
 
         # ast personal buffs
         buffs = {'Harmony of Spirit': BuffDC('logistic', 15.0), 'Harmony of Body': BuffDC('spd', 15.0, 0.1),
-                 'Harmony of Mind': BuffDC('dmg', 15.0, 1.05), 'Lightspeed': BuffDC('spd', 15.0, 1.0),
+                 'Harmony of Mind': BuffDC('dmg', 15.0, 1.05), 'Lightspeed': BuffDC('instant-cast', 15.0, 1.0),
                  'Lucid Dreaming': BuffDC('logistic', 21.0)}
         self.buffs.update(buffs)
 
@@ -140,10 +140,10 @@ class Actor(BaseActor):
                     return self.initiate_action(action)
 
             # Warning: not much thought put into this order
-            # # Start with Lightspeed
-            # action = 'Lightspeed'
-            # if self.allowed_action(action):
-            #     return self.initiate_action(action)
+            # Start with Lightspeed
+            action = 'Lightspeed'
+            if self.allowed_action(action):
+                return self.initiate_action(action)
             # Use Astrodyne when available
             action = 'Astrodyne'
             if self.allowed_action(action):
